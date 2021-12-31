@@ -182,7 +182,7 @@ impl<T> DockerCommand<T> {
             });
             if let Some(args) = args {
                 cmd.args(args);
-            }  
+            }
             cmd.stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .stdin(Stdio::null())
@@ -282,7 +282,11 @@ impl DockerCommand<DockerContainer<'_>> {
         })
     }
 
-    pub fn exec(&self, container: &DockerContainer, flags: Vec<String>) -> DockerResult<DockerCommand<DockerContainer>> {
+    pub fn exec(
+        &self,
+        container: &DockerContainer,
+        flags: Vec<String>,
+    ) -> DockerResult<DockerCommand<DockerContainer>> {
         let cmd = self.format_command(container, "exec", flags);
         Ok(DockerCommand::<DockerContainer> {
             command_string: Some(cmd),
@@ -492,19 +496,27 @@ mod tests {
         let cwd = std::env::current_dir().unwrap();
         let container = DockerContainer {
             name: "test-container".to_string(),
-            port_bindings: vec![DockerPort{ host: 80, container: 80}],
-            volumes: vec![Volume { 
+            port_bindings: vec![DockerPort {
+                host: 80,
+                container: 80,
+            }],
+            volumes: vec![Volume {
                 host: &host_path,
-                container: &Path::new("/data")
+                container: &Path::new("/data"),
             }],
             env_vars: HashMap::new(),
             image,
         };
         let expected_host_path_string = cwd.display();
-        let expected_docker_command = format!("container run --rm --detach -p80:80 --name test-container -v{}:/data trampoline", expected_host_path_string);
-        let command = DockerCommand::default().run(&container, true, true).unwrap();
+        let expected_docker_command = format!(
+            "container run --rm --detach -p80:80 --name test-container -v{}:/data trampoline",
+            expected_host_path_string
+        );
+        let command = DockerCommand::default()
+            .run(&container, true, true)
+            .unwrap();
         assert_eq!(
-            command.command_string.as_ref().unwrap().as_str(), 
+            command.command_string.as_ref().unwrap().as_str(),
             expected_docker_command.as_str()
         )
     }
