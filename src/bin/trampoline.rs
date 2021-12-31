@@ -116,7 +116,7 @@ fn main() -> Result<()> {
                     };
 
                     let container = DockerContainer {
-                        name: project.config.name.clone(),
+                        name: format!("{}-node", &project.config.name),
                         port_bindings: vec![DockerPort {
                             host: host_port,
                             container: container_port,
@@ -130,14 +130,6 @@ fn main() -> Result<()> {
                         .unwrap();
 
                     run.execute(Some(vec!["run".to_string()]))?;
-                    // Docker::default()
-                    //     .name(project.config.name.as_str())
-                    //     .add_service(project.config.env.unwrap().chain)?
-                    //     .run(
-                    //         Some(vec!["run".to_string()]),
-                    //         Some("node"),
-                    //         vec![miner_ports],
-                    //     )?;
                 }
                 NetworkCommands::SetMiner { pubkey, lock_arg } => {
                     let mut config = project.load_ckb_config()?;
@@ -173,7 +165,10 @@ fn main() -> Result<()> {
                     )?;
                 }
                 NetworkCommands::Indexer {} => {}
-                _ => {}
+                _ => {
+                    println!("Command not yet implemented!");
+                    std::process::exit(0);
+                }
             }
         }
         _ => {

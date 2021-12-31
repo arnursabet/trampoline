@@ -15,6 +15,7 @@ use std::string::ToString;
 
 pub const DOCKER_BIN: &str = "docker";
 pub const IMAGE_NAME: &str = "iamm/trampoline-env:latest";
+
 #[derive(Debug, Error)]
 pub enum DockerError {
     #[error(transparent)]
@@ -24,6 +25,7 @@ pub enum DockerError {
     #[error("No image set")]
     NoImage,
 }
+
 type DockerResult<T> = std::result::Result<T, DockerError>;
 
 #[derive(Hash, Eq, PartialEq, Debug, Clone)]
@@ -83,6 +85,7 @@ impl std::fmt::Display for Volume<'_> {
         )
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct DockerPort {
     pub host: usize,
@@ -164,13 +167,6 @@ pub struct DockerCommand<C> {
     pub command_string: Option<String>,
 }
 
-// impl<T> Into<String> for DockerCommand<T> {
-//     fn into(self) -> String {
-//         self.command_string.unwrap_or_default()
-//     }
-// }
-
-// Changed above to impl From
 impl<T> From<DockerCommand<T>> for String {
     fn from(command: DockerCommand<T>) -> String {
         command.command_string.unwrap_or_default()
@@ -186,11 +182,7 @@ impl<T> DockerCommand<T> {
             });
             if let Some(args) = args {
                 cmd.args(args);
-                //println!("{}{}", cmd_str, args.join(" "));
-            }
-            //println!("{}", cmd_str);
-            //cmd.arg(cmd_str);
-            //println!("{}", cmd_str);
+            }  
             cmd.stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .stdin(Stdio::null())
@@ -201,6 +193,7 @@ impl<T> DockerCommand<T> {
         }
     }
 }
+
 impl DockerCommand<DockerImage> {
     fn format_command(
         &self,
@@ -289,8 +282,12 @@ impl DockerCommand<DockerContainer<'_>> {
         })
     }
 
-    pub fn exec(_container: &DockerContainer) -> DockerResult<()> {
-        Ok(())
+    pub fn exec(&self, container: &DockerContainer, flags: Vec<String>) -> DockerResult<DockerCommand<DockerContainer>> {
+        let cmd = self.format_command(container, "exec", flags);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
     pub fn cp(_container: &DockerContainer) -> DockerResult<()> {
@@ -486,5 +483,29 @@ mod tests {
             command.command_string.as_ref().unwrap().as_str(),
             "image rm trampoline"
         );
+    }
+
+    #[test]
+    fn test_run_format_command() {
+        let image = image_2();
+        let host_path = Path::new("./").canonicalize().unwrap();
+        let cwd = std::env::current_dir().unwrap();
+        let container = DockerContainer {
+            name: "test-container".to_string(),
+            port_bindings: vec![DockerPort{ host: 80, container: 80}],
+            volumes: vec![Volume { 
+                host: &host_path,
+                container: &Path::new("/data")
+            }],
+            env_vars: HashMap::new(),
+            image,
+        };
+        let expected_host_path_string = cwd.display();
+        let expected_docker_command = format!("container run --rm --detach -p80:80 --name test-container -v{}:/data trampoline", expected_host_path_string);
+        let command = DockerCommand::default().run(&container, true, true).unwrap();
+        assert_eq!(
+            command.command_string.as_ref().unwrap().as_str(), 
+            expected_docker_command.as_str()
+        )
     }
 }
