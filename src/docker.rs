@@ -502,7 +502,7 @@ mod tests {
             }],
             volumes: vec![Volume {
                 host: &host_path,
-                container: &Path::new("/data"),
+                container: Path::new("/data"),
             }],
             env_vars: HashMap::new(),
             image,

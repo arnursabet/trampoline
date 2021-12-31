@@ -111,7 +111,7 @@ fn main() -> Result<()> {
                         .as_str();
 
                     let docker_volume = Volume {
-                        host: &host_volume,
+                        host: host_volume,
                         container: std::path::Path::new(container_volume),
                     };
 
@@ -123,7 +123,7 @@ fn main() -> Result<()> {
                         }],
                         volumes: vec![docker_volume],
                         env_vars: HashMap::default(),
-                        image: image,
+                        image,
                     };
                     let run: DockerCommand<DockerContainer> = DockerCommand::default()
                         .run(&container, false, true)
