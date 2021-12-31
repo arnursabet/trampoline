@@ -16,7 +16,7 @@ container_mount = "/var/lib/ckb"
 host = "http://localhost"
 host_port = 8116
 container_port = 8116
-local_binding = ".trampoline/network/index"
+local_binding = ".trampoline/network/indexer"
 container_mount = "/indexer/data"
 
 [deployed]

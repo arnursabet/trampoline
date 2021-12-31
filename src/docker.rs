@@ -122,17 +122,25 @@ impl std::fmt::Display for DockerContainer<'_> {
                 self.image.name.clone()
             }
         };
-        let volumes_string = self
-            .volumes
-            .iter()
-            .map(|vol| format!("-v{}", vol))
-            .collect::<Vec<String>>()
-            .join(" ");
-        write!(
-            f,
-            "{} --name {} {} {}",
-            port_bindings_string, self.name, volumes_string, image_string
-        )
+        if self.volumes.is_empty() {
+            write!(
+                f,
+                "{} --name {} {}",
+                port_bindings_string, self.name, image_string
+            )
+        } else {
+            let volumes_string = self
+                .volumes
+                .iter()
+                .map(|vol| format!("-v{}", vol))
+                .collect::<Vec<String>>()
+                .join(" ");
+            write!(
+                f,
+                "{} --name {} {} {}",
+                port_bindings_string, self.name, volumes_string, image_string
+            )
+        }
     }
 }
 
@@ -183,8 +191,11 @@ impl<T> DockerCommand<T> {
             if let Some(args) = args {
                 cmd.args(args);
             }
-            cmd.stdout(Stdio::null())
-                .stderr(Stdio::null())
+
+            let cmd_dis = cmd.get_program().to_str().unwrap();
+            println!("Executing: {}", cmd_dis);
+            cmd.stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
                 .stdin(Stdio::null())
                 .spawn()?;
             Ok(())

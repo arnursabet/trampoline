@@ -80,14 +80,14 @@ fn main() -> Result<()> {
                     let image = DockerImage {
                         name: "iamm/trampoline-env".to_string(),
                         tag: Some("latest".to_string()),
-                        file_path: Some(".".to_string()),
+                        file_path: Some("./".to_string()),
                         host_mappings: vec![],
                         build_args: HashMap::new(),
                     };
 
                     let cmd: DockerCommand<DockerImage> =
-                        DockerCommand::default().build(&image, true).unwrap();
-                    cmd.execute(None)?;
+                        DockerCommand::default().build(&image, false).unwrap();
+                    cmd.execute(Some(vec!["-f".to_string(), "./Dockerfile".to_string()]))?;
 
                     let container_port = project.config.env.as_ref().unwrap().chain.container_port;
                     let host_port = project.config.env.as_ref().unwrap().chain.host_port;
@@ -129,6 +129,8 @@ fn main() -> Result<()> {
                         .run(&container, false, true)
                         .unwrap();
 
+                    println!("{}", run.command_string.as_ref().unwrap());
+
                     run.execute(Some(vec!["run".to_string()]))?;
                 }
                 NetworkCommands::SetMiner { pubkey, lock_arg } => {
@@ -164,7 +166,73 @@ fn main() -> Result<()> {
                         miner_mount_path,
                     )?;
                 }
-                NetworkCommands::Indexer {} => {}
+                NetworkCommands::Indexer {} => {
+                    let image = DockerImage {
+                        name: "iamm/trampoline-indexer".to_string(),
+                        tag: Some("latest".to_string()),
+                        file_path: Some("./".to_string()),
+                        host_mappings: vec![],
+                        build_args: HashMap::new(),
+                    };
+
+                    let cmd: DockerCommand<DockerImage> =
+                        DockerCommand::default().build(&image, true).unwrap();
+
+                    println!("{}", cmd.command_string.as_ref().unwrap());
+                    cmd.execute(Some(vec!["-f".to_string(), "./DockerIndexer".to_string()]))?;
+
+                    let container_port =
+                        project.config.env.as_ref().unwrap().indexer.container_port;
+                    let host_port = project.config.env.as_ref().unwrap().indexer.host_port;
+
+                    let host_volume = project
+                        .config
+                        .env
+                        .as_ref()
+                        .unwrap()
+                        .indexer
+                        .local_binding
+                        .as_path();
+
+                    let container_volume = project
+                        .config
+                        .env
+                        .as_ref()
+                        .unwrap()
+                        .indexer
+                        .container_mount
+                        .as_str();
+
+                    let docker_volume = Volume {
+                        host: host_volume,
+                        container: std::path::Path::new(container_volume),
+                    };
+
+                    let container = DockerContainer {
+                        name: format!("{}-indexer", &project.config.name),
+                        port_bindings: vec![DockerPort {
+                            host: host_port,
+                            container: container_port,
+                        }],
+                        volumes: vec![docker_volume],
+                        env_vars: HashMap::default(),
+                        image,
+                    };
+                    let run: DockerCommand<DockerContainer> = DockerCommand::default()
+                        .run(&container, false, true)
+                        .unwrap();
+                    println!("{}", run.command_string.as_ref().unwrap());
+
+                    run.execute(Some(vec![
+                        "/indexer/ckb-indexer".into(),
+                        "-l".into(),
+                        "0.0.0.0:8114".into(),
+                        "-s".into(),
+                        "/indexer/data".into(),
+                        "-c".into(),
+                        "http://172.17.0.2:8114".into(),
+                    ]))?;
+                }
                 _ => {
                     println!("Command not yet implemented!");
                     std::process::exit(0);

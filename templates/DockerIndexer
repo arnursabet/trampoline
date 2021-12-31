@@ -1,0 +1,8 @@
+FROM rust:1 as builder
+
+RUN mkdir /indexer
+RUN cd /indexer && \
+    curl -L https://github.com/nervosnetwork/ckb-indexer/releases/download/v0.3.2/ckb-indexer-0.3.2-linux.zip > ckb_indexer.zip && \
+    unzip ckb_indexer.zip && \
+    tar -xf ckb-indexer-linux-x86_64.tar.gz && \
+    mkdir ./data
