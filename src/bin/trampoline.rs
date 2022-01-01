@@ -89,6 +89,7 @@ fn main() -> Result<()> {
                         DockerCommand::default().build(&image, false).unwrap();
                     cmd.execute(Some(vec!["-f".to_string(), "./Dockerfile".to_string()]))?;
 
+                    //std::thread::sleep(std::time::Duration::from_millis(5000));
                     let container_port = project.config.env.as_ref().unwrap().chain.container_port;
                     let host_port = project.config.env.as_ref().unwrap().chain.host_port;
 
@@ -180,6 +181,7 @@ fn main() -> Result<()> {
 
                     println!("{}", cmd.command_string.as_ref().unwrap());
                     cmd.execute(Some(vec!["-f".to_string(), "./DockerIndexer".to_string()]))?;
+                    //std::thread::sleep(std::time::Duration::from_millis(5000));
 
                     let container_port =
                         project.config.env.as_ref().unwrap().indexer.container_port;

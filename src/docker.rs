@@ -1,3 +1,4 @@
+use crate::docker;
 use crate::project::VirtualEnv;
 use std::collections::HashMap;
 use std::fmt::Formatter;
@@ -6,11 +7,13 @@ use std::marker::PhantomData;
 use std::process::Command;
 
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use thiserror::Error;
 
 use std::process::Stdio;
 
+use anyhow::anyhow;
 use std::string::ToString;
 
 pub const DOCKER_BIN: &str = "docker";
@@ -194,11 +197,33 @@ impl<T> DockerCommand<T> {
 
             let cmd_dis = cmd.get_program().to_str().unwrap();
             println!("Executing: {}", cmd_dis);
-            cmd.stdout(Stdio::inherit())
-                .stderr(Stdio::inherit())
+            let mut child = cmd
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
                 .stdin(Stdio::null())
                 .spawn()?;
-            Ok(())
+            let res = loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        if status.success() {
+                            break Ok(());
+                        } else {
+                            let err = anyhow!("Docker exited with status {:?}", status.code());
+                            break Err(docker::DockerError::Any(err));
+                        }
+                    }
+                    Ok(None) => {
+                        println!("Waiting 500ms");
+                        std::thread::sleep(Duration::from_millis(500));
+                        continue;
+                    }
+                    Err(e) => {
+                        panic!("Error executing docker command: {}", e);
+                    }
+                }
+            };
+
+            res
         } else {
             Err(DockerError::NoImage)
         }
