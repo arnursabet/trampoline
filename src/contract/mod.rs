@@ -128,8 +128,10 @@ mod tests {
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::packed::{Byte32, Uint128};
 
+    // Generated from ckb-cli util blake2b --binary-path /path/to/builtins/bins/simple_udt
     const expected_sudt_hash: &'static str =
-        "0x44f4c69744d5f8c55d642062949dcae49bc4e7ef43d388c5a12f42b5633d163e";
+        "0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419";
+
     #[test]
     fn test_contract_pack_and_unpack_data() {
         let path_to_sudt_bin = "builtins/bins/simple_udt";
