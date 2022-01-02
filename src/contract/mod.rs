@@ -132,8 +132,7 @@ mod tests {
     const expected_sudt_hash: &'static str =
         "0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419";
 
-    #[test]
-    fn test_contract_pack_and_unpack_data() {
+    fn gen_sudt_contract() -> SudtContract {
         let path_to_sudt_bin = "builtins/bins/simple_udt";
 
         let path_to_sudt_bin = Path::new(path_to_sudt_bin).canonicalize().unwrap();
@@ -142,7 +141,7 @@ mod tests {
             Box::new(SudtArgsSchema {}) as Box<dyn ContractSchema<Output = Byte32>>;
         let data_schema_ptr =
             Box::new(SudtDataSchema {}) as Box<dyn ContractSchema<Output = Uint128>>;
-        let mut sudt_contract = SudtContract {
+        SudtContract {
             args: None,
             data: None,
             source: Some(ContractSource::Immediate(sudt_src.clone())),
@@ -151,7 +150,11 @@ mod tests {
             lock: None,
             type_: None,
             code: Some(JsonBytes::from_bytes(sudt_src)),
-        };
+        }
+    }
+    #[test]
+    fn test_contract_pack_and_unpack_data() {
+        let mut sudt_contract = gen_sudt_contract();
 
         sudt_contract.set_args(Byte32::default());
         sudt_contract.set_data(1200_u128.pack());
@@ -162,24 +165,8 @@ mod tests {
 
     #[test]
     fn test_sudt_data_hash_gen_json() {
-        let path_to_sudt_bin = "builtins/bins/simple_udt";
+        let sudt_contract = gen_sudt_contract();
 
-        let path_to_sudt_bin = Path::new(path_to_sudt_bin).canonicalize().unwrap();
-        let sudt_src = ContractSource::load_from_path(path_to_sudt_bin).unwrap();
-        let arg_schema_ptr =
-            Box::new(SudtArgsSchema {}) as Box<dyn ContractSchema<Output = Byte32>>;
-        let data_schema_ptr =
-            Box::new(SudtDataSchema {}) as Box<dyn ContractSchema<Output = Uint128>>;
-        let mut sudt_contract = SudtContract {
-            args: None,
-            data: None,
-            source: Some(ContractSource::Immediate(sudt_src.clone())),
-            args_schema: arg_schema_ptr,
-            data_schema: data_schema_ptr,
-            lock: None,
-            type_: None,
-            code: Some(JsonBytes::from_bytes(sudt_src)),
-        };
         let json_code_hash =
             ckb_jsonrpc_types::Byte32::from(sudt_contract.data_hash().unwrap().pack());
 
@@ -193,24 +180,7 @@ mod tests {
 
     #[test]
     fn test_sudt_data_hash_gen() {
-        let path_to_sudt_bin = "builtins/bins/simple_udt";
-
-        let path_to_sudt_bin = Path::new(path_to_sudt_bin).canonicalize().unwrap();
-        let sudt_src = ContractSource::load_from_path(path_to_sudt_bin).unwrap();
-        let arg_schema_ptr =
-            Box::new(SudtArgsSchema {}) as Box<dyn ContractSchema<Output = Byte32>>;
-        let data_schema_ptr =
-            Box::new(SudtDataSchema {}) as Box<dyn ContractSchema<Output = Uint128>>;
-        let mut sudt_contract = SudtContract {
-            args: None,
-            data: None,
-            source: Some(ContractSource::Immediate(sudt_src.clone())),
-            args_schema: arg_schema_ptr,
-            data_schema: data_schema_ptr,
-            lock: None,
-            type_: None,
-            code: Some(JsonBytes::from_bytes(sudt_src)),
-        };
+        let sudt_contract = gen_sudt_contract();
 
         let code_hash = sudt_contract.data_hash().unwrap().pack();
         let hash_hex_str = format!("0x{}", hex::encode(&code_hash.raw_data().to_vec()));
