@@ -195,8 +195,7 @@ impl<T> DockerCommand<T> {
                 cmd.args(args);
             }
 
-            let cmd_dis = cmd.get_program().to_str().unwrap();
-            println!("Executing: {}", cmd_dis);
+            let _cmd_dis = cmd.get_program().to_str().unwrap();
             let mut child = cmd
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
