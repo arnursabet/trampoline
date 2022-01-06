@@ -329,28 +329,88 @@ impl DockerCommand<DockerContainer<'_>> {
         })
     }
 
-    pub fn cp(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn cp_from<'a>(
+        container: &'a DockerContainer,
+        file_path: &Path,
+        dest_path: &Path,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!(
+            "container cp {}:{} {}",
+            &container.name,
+            &file_path.to_str().unwrap(),
+            &dest_path.to_str().unwrap()
+        );
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
-    pub fn start(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn cp_to<'a>(
+        container: &'a DockerContainer,
+        file_path: &Path,
+        dest_path: &Path,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!(
+            "container cp {} {}:{}",
+            &file_path.to_str().unwrap(),
+            &container.name,
+            &dest_path.to_str().unwrap()
+        );
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
-    pub fn stop(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn start<'a>(
+        container: &'a DockerContainer,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!("container start {}", &container.name);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
-    pub fn pause(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn stop<'a>(
+        container: &'a DockerContainer,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!("container stop {}", &container.name);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
-    pub fn unpause(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn pause<'a>(
+        container: &'a DockerContainer,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!("container pause {}", &container.name);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 
-    pub fn restart(_container: &DockerContainer) -> DockerResult<()> {
-        todo!()
+    pub fn unpause<'a>(
+        container: &'a DockerContainer,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!("container unpause {}", &container.name);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
+    }
+
+    pub fn restart<'a>(
+        container: &'a DockerContainer,
+    ) -> DockerResult<DockerCommand<DockerContainer<'a>>> {
+        let cmd = format!("container restart {}", &container.name);
+        Ok(DockerCommand::<DockerContainer> {
+            command_string: Some(cmd),
+            _docker: PhantomData::<DockerContainer>,
+        })
     }
 }
 
@@ -502,6 +562,103 @@ mod tests {
             host_mappings: vec![],
             build_args: HashMap::new(),
         }
+    }
+
+    fn dummy_container() -> DockerContainer<'static> {
+        let image = image();
+
+        let docker_volume = Volume {
+            host: Path::new("/test/path/host"),
+            container: Path::new("/test/path/container"),
+        };
+
+        let container = DockerContainer {
+            name: String::from("test-container"),
+            port_bindings: vec![DockerPort {
+                host: 7357,
+                container: 7357,
+            }],
+            volumes: vec![docker_volume],
+            env_vars: HashMap::default(),
+            image,
+        };
+
+        container
+    }
+
+    #[test]
+    fn test_container_cp_to() {
+        let container = dummy_container();
+        let file_path = Path::new("./file.test");
+        let dest_path = Path::new("/var/lib/ckb");
+        let cmd =
+            DockerCommand::<DockerContainer>::cp_to(&container, file_path, dest_path).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container cp ./file.test {}:/var/lib/ckb", container.name)
+        );
+    }
+
+    fn test_container_cp_from() {
+        let container = dummy_container();
+        let file_path = Path::new("/var/lib/ckb/file.test");
+        let dest_path = Path::new(".");
+        let cmd =
+            DockerCommand::<DockerContainer>::cp_from(&container, file_path, dest_path).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container cp {}:/var/lib/ckb/file.test .", container.name)
+        );
+    }
+
+    #[test]
+    fn test_container_start() {
+        let container = dummy_container();
+        let cmd = DockerCommand::<DockerContainer>::start(&container).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container start {}", container.name)
+        );
+    }
+
+    #[test]
+    fn test_container_stop() {
+        let container = dummy_container();
+        let cmd = DockerCommand::<DockerContainer>::stop(&container).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container stop {}", container.name)
+        );
+    }
+
+    #[test]
+    fn test_container_pause() {
+        let container = dummy_container();
+        let cmd = DockerCommand::<DockerContainer>::pause(&container).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container pause {}", container.name)
+        );
+    }
+
+    #[test]
+    fn test_container_unpause() {
+        let container = dummy_container();
+        let cmd = DockerCommand::<DockerContainer>::unpause(&container).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container unpause {}", container.name)
+        );
+    }
+
+    #[test]
+    fn test_container_restart() {
+        let container = dummy_container();
+        let cmd = DockerCommand::<DockerContainer>::restart(&container).unwrap();
+        assert_eq!(
+            cmd.command_string.as_ref().unwrap().as_str(),
+            format!("container restart {}", container.name)
+        );
     }
 
     #[test]
