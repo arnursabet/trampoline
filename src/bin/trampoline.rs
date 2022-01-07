@@ -240,9 +240,6 @@ fn main() -> Result<()> {
                 }
             }
         }
-        _ => {
-            println!("Unrecognized command. Use `trampoline --help` for usage information.")
-        }
     }
 
     Ok(())
