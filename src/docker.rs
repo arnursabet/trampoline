@@ -572,7 +572,9 @@ mod tests {
             container: Path::new("/test/path/container"),
         };
 
-        let container = DockerContainer {
+        
+
+        DockerContainer {
             name: String::from("test-container"),
             port_bindings: vec![DockerPort {
                 host: 7357,
@@ -581,9 +583,7 @@ mod tests {
             volumes: vec![docker_volume],
             env_vars: HashMap::default(),
             image,
-        };
-
-        container
+        }
     }
 
     #[test]
