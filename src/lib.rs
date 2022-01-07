@@ -32,6 +32,7 @@ lazy_static! {
     };
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum TrampolineResourceType {
     Project(project::TrampolineProject),
     Schema(schema::Schema),

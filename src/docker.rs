@@ -525,8 +525,8 @@ impl Docker {
         });
 
         cmd.arg(IMAGE_NAME);
-        if exec_args.is_some() {
-            cmd.args(exec_args.unwrap().as_slice());
+        if let Some(exec_args) = exec_args {
+            cmd.args(exec_args.as_slice());
         }
 
         let _child = cmd.stdout(Stdio::null()).stderr(Stdio::null()).spawn()?;

@@ -20,8 +20,8 @@ pub enum SchemaError {
 
 #[derive(Debug, Clone, Default)]
 pub struct Schema {
-    name: String,
-    path: PathBuf,
+    _name: String,
+    _path: PathBuf,
 }
 
 impl From<Schema> for TrampolineResourceType {
@@ -45,8 +45,8 @@ impl TrampolineResource for Schema {
             .unwrap()
             .to_string();
         Ok(Schema {
-            name,
-            path: path.as_ref().to_path_buf(),
+            _name: name,
+            _path: path.as_ref().to_path_buf(),
         }
         .into())
     }
@@ -98,8 +98,8 @@ impl TrampolineResource for Schema {
         }
 
         Ok(Schema {
-            path: molecule_file_path,
-            name,
+            _path: molecule_file_path,
+            _name: name,
         }
         .into())
     }

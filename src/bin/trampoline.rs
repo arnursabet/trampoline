@@ -59,8 +59,7 @@ fn main() -> Result<()> {
                     let mut schema_args: SchemaInitArgs =
                         (TrampolineProject::from(project?), name, None);
                     if def.is_some() {
-                        let content = def.unwrap();
-                        schema_args.2 = Some(content);
+                        schema_args.2 = def;
                     }
 
                     //println!("{:?}", schema_args);
