@@ -572,8 +572,6 @@ mod tests {
             container: Path::new("/test/path/container"),
         };
 
-        
-
         DockerContainer {
             name: String::from("test-container"),
             port_bindings: vec![DockerPort {

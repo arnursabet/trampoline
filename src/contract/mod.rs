@@ -1,8 +1,6 @@
-
 use ckb_hash::blake2b_256;
 use ckb_jsonrpc_types::{JsonBytes, Script};
 use ckb_types::{bytes::Bytes, packed, prelude::*, H256};
-
 
 use std::fs;
 use std::path::PathBuf;
@@ -79,13 +77,15 @@ impl<A, D> Contract<A, D> {
     // Returns a script structure which can be used as a lock or type script on other cells.
     // This is an easy way to let other cells use this contract
     pub fn as_script(&self) -> Option<ckb_jsonrpc_types::Script> {
-        self.data_hash().map(|data_hash| Script::from(
+        self.data_hash().map(|data_hash| {
+            Script::from(
                 packed::ScriptBuilder::default()
                     .args(self.args.as_ref().unwrap().clone().into_bytes().pack())
                     .code_hash(data_hash.0.pack())
                     .hash_type(ckb_types::core::ScriptHashType::Data1.into())
                     .build(),
-            ))
+            )
+        })
     }
 
     pub fn set_raw_data(&mut self, data: impl Into<JsonBytes>) {
