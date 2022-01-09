@@ -3,6 +3,7 @@ pub mod docker;
 pub mod opts;
 pub mod project;
 pub mod schema;
+pub mod rpc;
 mod utils;
 
 use anyhow::{anyhow, Result};
