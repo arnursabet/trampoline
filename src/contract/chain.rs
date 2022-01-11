@@ -73,7 +73,7 @@ pub struct MockChain {
     pub headers: HashMap<Byte32, HeaderView>,
     pub epoches: HashMap<Byte32, EpochExt>,
     pub cells_by_data_hash: HashMap<Byte32, OutPoint>,
-    debug: bool,
+    pub debug: bool,
     messages: Arc<Mutex<Vec<Message>>>,
 }
 
@@ -120,7 +120,10 @@ impl MockChain {
     }
 
     pub fn create_cell_with_outpoint(&mut self, outp: OutPoint, cell: CellOutput, data: Bytes) {
+        let data_hash = CellOutput::calc_data_hash(&data);
+        self.cells_by_data_hash.insert(data_hash, outp.clone());
         self.cells.insert(outp, (cell, data));
+      
     }
 
     pub fn get_cell(&self, out_point: &OutPoint) -> Option<CellOutputWithData> {
@@ -157,7 +160,7 @@ impl MockChain {
 
         let out_point = self
             .get_cell_by_data_hash(&script.code_hash())
-            .expect("find contract out point");
+            .expect(&format!("Cannot find contract out point with data_hash: {}", &script.code_hash()));
         CellDep::new_builder()
             .out_point(out_point)
             .dep_type(DepType::Code.into())
@@ -204,7 +207,7 @@ impl MockChain {
             .build()
     }
 
-    fn build_resolved_tx(&self, tx: &TransactionView) -> ResolvedTransaction {
+    pub fn build_resolved_tx(&self, tx: &TransactionView) -> ResolvedTransaction {
         let input_cells = tx
             .inputs()
             .into_iter()
@@ -415,7 +418,8 @@ impl TransactionProvider for MockChainTxProvider {
             Ok(_) => {
                 true
             }
-            Err(_) => {
+            Err(e) => {
+                println!("Error in tx verify: {:?}", e);
                 false
             }
         }
