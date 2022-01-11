@@ -272,15 +272,20 @@ mod tests {
     fn test_update_sudt_with_rule() {
        
         let mut sudt_contract = gen_sudt_contract();
+        // Create SUDT Cell Output
         let sudt_cell = CellOutput::new_builder()
             .capacity(100_u64.pack())
             .type_(Some(ckb_types::packed::Script::from(sudt_contract.as_script().unwrap())).pack())
             .lock(sudt_contract.as_script().unwrap().into())
             .build();
+
+        // Mock Transaction with a single output
         let transaction = TransactionBuilder::default()
             .output(sudt_cell)
             .outputs_data(vec![2000_u128.to_le_bytes().pack()])
             .build();
+
+        // Add chain of output rules to sudt contract
             sudt_contract.add_output_rule(
                 ContractCellFieldSelector::Data, 
         |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
@@ -295,11 +300,28 @@ mod tests {
                       }
             );
 
+            sudt_contract.add_output_rule(
+                ContractCellFieldSelector::Data, 
+        |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                        if let ContractCellField::Data(amount) = amount {
+                            let mut amt_bytes = [0u8; 16];
+                            amt_bytes.copy_from_slice(amount.as_slice());
+                            let amt = u128::from_le_bytes(amt_bytes) + 20;
+                            ContractCellField::Data(amt.pack())
+                        } else {
+                            amount
+                        }
+                      }
+            );
+
+            // Pipe transaction into sudt contract
             let new_tx = sudt_contract.pipe(transaction);
+
+            // Check that sudt contract updated correctly
             let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
             println!("New tx amt as bytes: {:?}", new_tx_amt.pack());
             let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
-            assert_eq!(new_tx_amt, 2017_u128);
+            assert_eq!(new_tx_amt, 2037_u128);
     }
     #[test]
     fn test_add_output_rule() {
