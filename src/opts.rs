@@ -79,6 +79,10 @@ pub enum NetworkCommands {
         about = "Initialize new network configuration without starting"
     )]
     Init {},
+    #[structopt(name = "rpc", about = "Make Rpc calls")]
+    Rpc {
+        hash: String,
+    }
 }
 #[derive(Debug, StructOpt)]
 pub enum SchemaCommand {
