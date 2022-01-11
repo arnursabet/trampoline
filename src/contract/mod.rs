@@ -239,6 +239,7 @@ mod tests {
     use std::path::Path;
     use ckb_always_success_script;
 
+    
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::{packed::{Byte32, Uint128}, core::TransactionBuilder};
 
@@ -268,22 +269,39 @@ mod tests {
         }
     }
 
+    fn generate_always_success_lock() -> ckb_types::packed::Script {
+        let data: Bytes = ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
+        let data_hash = H256::from(blake2b_256(data.to_vec().as_slice()));
+        ckb_types::packed::Script::default()
+            .as_builder()
+            .args([0u8].pack())
+            .code_hash(data_hash.pack())
+            .hash_type(ckb_types::core::ScriptHashType::Data1.into())
+            .build()
+    }
+    fn generate_simple_udt_cell(sudt_contract: &SudtContract) -> CellOutput {
+        CellOutput::new_builder()
+        .capacity(100_u64.pack())
+        .type_(Some(ckb_types::packed::Script::from(sudt_contract.as_script().unwrap())).pack())
+        .lock(generate_always_success_lock())
+        .build()
+    }
+
+    fn generate_mock_tx(outputs: Vec<CellOutput>, outputs_data: Vec<ckb_types::packed::Bytes>) -> TransactionView {
+        TransactionBuilder::default()
+        .outputs(outputs)
+        .outputs_data(outputs_data)
+        .build()
+    }
+
     #[test]
     fn test_update_sudt_with_rule_pipeline() {
-       
+       // Load SUDT contract
         let mut sudt_contract = gen_sudt_contract();
         // Create SUDT Cell Output
-        let sudt_cell = CellOutput::new_builder()
-            .capacity(100_u64.pack())
-            .type_(Some(ckb_types::packed::Script::from(sudt_contract.as_script().unwrap())).pack())
-            .lock(sudt_contract.as_script().unwrap().into())
-            .build();
-
+        let sudt_cell = generate_simple_udt_cell(&sudt_contract);
         // Mock Transaction with a single output
-        let transaction = TransactionBuilder::default()
-            .output(sudt_cell)
-            .outputs_data(vec![2000_u128.to_le_bytes().pack()])
-            .build();
+        let transaction = generate_mock_tx(vec![sudt_cell], vec![2000_u128.to_le_bytes().pack()]);
 
         // Add output rule to sudt contract to increase balance by 17
             sudt_contract.add_output_rule(

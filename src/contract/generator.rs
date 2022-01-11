@@ -1,11 +1,10 @@
-use crate::contract::{Contract};
-use ckb_types::core::TransactionView;
+
+use ckb_types::core::{TransactionView, TransactionBuilder};
+use ckb_types::H256;
 pub trait TransactionProvider {
-    fn send_tx(&self) -> ();
+    fn send_tx(&self) -> Option<H256>;
 
-    fn build_tx(&self) -> ();
-
-    fn sign_tx(&self) -> ();
+    fn verify_tx(&self) -> bool;
 
 }
 
@@ -28,6 +27,15 @@ pub struct Generator<'a, 'b> {
 }
 
 impl<'a, 'b> Generator<'a, 'b> {
+    pub fn new() -> Self {
+        Generator {
+            middleware: vec![],
+            chain_service: None,
+            query_service: None,
+            tx: Some(TransactionBuilder::default().build())
+        }
+    }
+
     pub fn set_pipeline(&mut self, pipes: Vec<&'a dyn GeneratorMiddleware>) {
         self.middleware = pipes;
     }
@@ -40,5 +48,9 @@ impl<'a, 'b> Generator<'a, 'b> {
         self.query_service = Some(query_service);
     }
 
-
+    pub fn generate(&self) -> TransactionView {
+        self.middleware.iter().fold(self.tx.as_ref().unwrap().clone(), |tx, middleware| {
+            middleware.pipe(tx)
+        })
+    }
 }
