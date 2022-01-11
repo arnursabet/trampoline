@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 pub mod sudt;
 pub mod generator;
+pub mod chain;
 
 
 pub trait ContractSchema {
@@ -238,7 +239,7 @@ mod tests {
     use super::*;
     use std::path::Path;
     use ckb_always_success_script;
-
+    use chain::{CellOutputWithData, random_hash, random_out_point, MockChain, MockChainTxProvider as ChainRpc};
     
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::{packed::{Byte32, Uint128}, core::TransactionBuilder};
@@ -247,6 +248,7 @@ mod tests {
     const EXPECTED_SUDT_HASH: &str =
         "0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419";
 
+    
     fn gen_sudt_contract() -> SudtContract {
         let path_to_sudt_bin = "builtins/bins/simple_udt";
 

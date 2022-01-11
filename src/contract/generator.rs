@@ -2,17 +2,19 @@ use std::rc::Rc;
 
 use ckb_types::core::cell::CellMeta;
 use ckb_types::core::{TransactionView, TransactionBuilder};
-use ckb_types::H256;
 use ckb_jsonrpc_types::{
-    Byte32, Script, OutPoint, Capacity
+    Byte32, Script, OutPoint, Capacity, TransactionView as JsonTransaction
 };
-pub trait TransactionProvider {
-    fn send_tx(&self) -> Option<H256>;
 
-    fn verify_tx(&self) -> bool;
+// Note: Uses ckb_jsonrpc_types
+pub trait TransactionProvider {
+    fn send_tx(&self, tx: JsonTransaction) -> Option<Byte32>;
+
+    fn verify_tx(&self, tx: JsonTransaction) -> bool;
 
 }
 
+// Note: Uses ckb_types::core::TransactionView; not ckb_jsonrpc_types::TransactionView
 pub trait GeneratorMiddleware {
     fn pipe(&self, tx: TransactionView) -> TransactionView;
 }
@@ -45,7 +47,7 @@ pub struct CellQuery {
 
 
 pub trait QueryProvider {
-    fn get_cells(&self, query: CellQuery) -> Vec<CellMeta>;
+    fn query(&self, query: CellQuery) -> Vec<CellMeta>;
 }
 
 #[derive(Default)]
@@ -81,6 +83,13 @@ impl<'a, 'b> Generator<'a, 'b> {
         self
     }
 
+    pub fn query(&self, query: CellQuery) -> Option<Vec<CellMeta>> {
+        if let Some(query_service) = self.query_service {
+            Some(query_service.query(query))
+        } else {
+            None
+        }
+    }
     pub fn generate(&self) -> TransactionView {
         self.pipe(self.tx.as_ref().unwrap().clone())
     }
@@ -93,3 +102,4 @@ impl GeneratorMiddleware for Generator<'_, '_> {
         })
     }
 }
+
