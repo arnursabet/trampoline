@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn test_update_sudt_with_rule() {
+    fn test_update_sudt_with_rule_pipeline() {
        
         let mut sudt_contract = gen_sudt_contract();
         // Create SUDT Cell Output
@@ -285,7 +285,7 @@ mod tests {
             .outputs_data(vec![2000_u128.to_le_bytes().pack()])
             .build();
 
-        // Add chain of output rules to sudt contract
+        // Add output rule to sudt contract to increase balance by 17
             sudt_contract.add_output_rule(
                 ContractCellFieldSelector::Data, 
         |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
@@ -300,6 +300,7 @@ mod tests {
                       }
             );
 
+        // Add output rule to sudt contract to increase balance by 20
             sudt_contract.add_output_rule(
                 ContractCellFieldSelector::Data, 
         |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
@@ -317,7 +318,7 @@ mod tests {
             // Pipe transaction into sudt contract
             let new_tx = sudt_contract.pipe(transaction);
 
-            // Check that sudt contract updated correctly
+            // Check that sudt contract updated correctly with a total balance increase of 37 (17 + 20)
             let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
             println!("New tx amt as bytes: {:?}", new_tx_amt.pack());
             let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
