@@ -1,9 +1,9 @@
 use ckb_hash::blake2b_256;
 use ckb_jsonrpc_types::{CellDep, DepType, JsonBytes, OutPoint, Script};
-use ckb_types::core::{TransactionBuilder, TransactionView};
+use ckb_types::core::{TransactionView};
 use ckb_types::packed::{CellOutput, CellOutputBuilder, Uint64};
 use ckb_types::{bytes::Bytes, packed, prelude::*, H256};
-use generator::{GeneratorMiddleware, QueryProvider, TransactionProvider};
+use generator::{GeneratorMiddleware};
 
 use std::fs;
 use std::path::PathBuf;
@@ -123,7 +123,7 @@ impl<A, D> Contract<A, D> {
 
     // Return a CellOutputWithData which is the code cell storing this contract's logic
     pub fn as_code_cell(&self) -> CellOutputWithData {
-        let data: Bytes = self.code.clone().unwrap_or(Default::default()).into_bytes();
+        let data: Bytes = self.code.clone().unwrap_or_default().into_bytes();
         let type_script = self.type_.clone().unwrap_or_default();
         let type_script = {
             if self.type_.is_some() {
@@ -135,7 +135,7 @@ impl<A, D> Contract<A, D> {
 
         let cell_output = CellOutputBuilder::default()
             .capacity((data.len() as u64).pack())
-            .lock(self.lock.clone().unwrap_or(Default::default()).into())
+            .lock(self.lock.clone().unwrap_or_default().into())
             .type_(type_script.pack())
             .build();
         (cell_output, data)
@@ -254,12 +254,12 @@ where
                                         self.data_schema.pack(new_data.clone())
                                     );
 
-                                    return (
-                                        output.0.clone(),
+                                    (
+                                        output.0,
                                         self.data_schema.pack(new_data).unpack(),
-                                    );
+                                    )
                                 } else {
-                                    return output;
+                                    output
                                 }
                             }
                             ContractCellFieldSelector::LockScript => todo!(),
@@ -269,7 +269,7 @@ where
                         });
                 println!(
                     "Output bytes of processed output: {:?}",
-                    processed.1.clone().pack()
+                    processed.1.pack()
                 );
                 processed
             })
@@ -306,14 +306,14 @@ mod tests {
     use super::sudt::*;
     use super::*;
     use chain::{
-        random_hash, random_out_point, CellOutputWithData, MockChain,
+        MockChain,
         MockChainTxProvider as ChainRpc,
     };
     use ckb_always_success_script;
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::{
         core::TransactionBuilder,
-        packed::{Byte32, CellInput, CellInputBuilder, Uint128},
+        packed::{Byte32, CellInputBuilder, Uint128},
     };
     use generator::*;
     use std::path::Path;
@@ -429,7 +429,7 @@ mod tests {
         let non_minter_owned_cell = chain.create_cell(
             CellOutput::new_builder()
                 .capacity(2000_u64.pack())
-                .lock(non_minter_lock.clone().unwrap())
+                .lock(non_minter_lock.unwrap())
                 .build(),
             Default::default(),
         );
@@ -441,11 +441,11 @@ mod tests {
 
         // Create Cell Inputs
         let minter_owned_cell_input = CellInputBuilder::default()
-            .previous_output(minter_owned_cell.clone())
+            .previous_output(minter_owned_cell)
             .build();
 
         let non_minter_owned_cell_input = CellInputBuilder::default()
-            .previous_output(non_minter_owned_cell.clone())
+            .previous_output(non_minter_owned_cell)
             .build();
 
         // Create Mint SUDT transaction, using as input a cell locked with the minter's lock script
@@ -470,7 +470,7 @@ mod tests {
                     .as_cell_dep(sudt_code_cell_outpoint.into())
                     .into(),
             )
-            .cell_dep(chain.find_cell_dep_for_script(&minter_lock_script.clone().unwrap()))
+            .cell_dep(chain.find_cell_dep_for_script(&minter_lock_script.unwrap()))
             .output(generate_simple_udt_cell(&sudt_contract))
             .outputs_data(vec![0_u128.to_le_bytes().pack()])
             .build();
@@ -492,7 +492,7 @@ mod tests {
 
         // Instantiate chain rpc and tx generator
         let chain_rpc = ChainRpc::new(chain);
-        let mut generator = Generator::new()
+        let generator = Generator::new()
             .chain_service(&chain_rpc)
             .pipeline(vec![&sudt_contract]);
 
@@ -501,7 +501,7 @@ mod tests {
         let new_fail_tx = generator.pipe(fail_tx);
 
         // Test that success transaction succeeded & has correct sudt amount minted
-        let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
+        let new_tx_amt = new_tx.output_with_data(0).unwrap().1;
         let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
         assert_eq!(new_tx_amt, 2000_u128);
 
@@ -556,7 +556,7 @@ mod tests {
         let new_tx = sudt_contract.pipe(transaction);
 
         // Check that sudt contract updated correctly with a total balance increase of 37 (17 + 20)
-        let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
+        let new_tx_amt = new_tx.output_with_data(0).unwrap().1;
         println!("New tx amt as bytes: {:?}", new_tx_amt.pack());
         let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
         assert_eq!(new_tx_amt, 2037_u128);

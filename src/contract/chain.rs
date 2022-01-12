@@ -1,4 +1,4 @@
-use crate::contract::generator::{QueryProvider, TransactionProvider};
+use crate::contract::generator::{TransactionProvider};
 use ckb_chain_spec::consensus::{Consensus, ConsensusBuilder, TYPE_ID_CODE_HASH};
 use ckb_error::Error as CKBError;
 use ckb_jsonrpc_types::TransactionView as JsonTransaction;
@@ -9,8 +9,7 @@ use ckb_types::{
     core::{
         cell::{CellMeta, CellMetaBuilder, ResolvedTransaction},
         hardfork::HardForkSwitch,
-        Capacity, Cycle, DepType, EpochExt, EpochNumberWithFraction, HeaderView, ScriptHashType,
-        TransactionBuilder, TransactionInfo, TransactionView,
+        Capacity, Cycle, DepType, EpochExt, EpochNumberWithFraction, HeaderView, ScriptHashType, TransactionInfo, TransactionView,
     },
     packed::{Byte32, CellDep, CellOutput, OutPoint, Script},
     prelude::*,
@@ -156,10 +155,8 @@ impl MockChain {
 
         let out_point = self
             .get_cell_by_data_hash(&script.code_hash())
-            .expect(&format!(
-                "Cannot find contract out point with data_hash: {}",
-                &script.code_hash()
-            ));
+            .unwrap_or_else(|| panic!("Cannot find contract out point with data_hash: {}",
+                &script.code_hash()));
         CellDep::new_builder()
             .out_point(out_point)
             .dep_type(DepType::Code.into())
@@ -392,11 +389,11 @@ impl MockChainTxProvider {
 impl TransactionProvider for MockChainTxProvider {
     fn send_tx(&self, tx: JsonTransaction) -> Option<ckb_jsonrpc_types::Byte32> {
         let mut chain = self.chain.borrow_mut();
-        let inner_tx = tx.clone().inner;
+        let inner_tx = tx.inner;
         let inner_tx = ckb_types::packed::Transaction::from(inner_tx);
         let converted_tx_view = inner_tx.as_advanced_builder().build();
         let tx = chain.complete_tx(converted_tx_view);
-        if let Some(hash) = chain.receive_tx(&tx).ok() {
+        if let Ok(hash) = chain.receive_tx(&tx) {
             let tx_hash: ckb_jsonrpc_types::Byte32 = hash.into();
             Some(tx_hash)
         } else {
@@ -406,7 +403,7 @@ impl TransactionProvider for MockChainTxProvider {
 
     fn verify_tx(&self, tx: JsonTransaction) -> bool {
         let mut chain = self.chain.borrow_mut();
-        let inner_tx = tx.clone().inner;
+        let inner_tx = tx.inner;
         let inner_tx = ckb_types::packed::Transaction::from(inner_tx);
         let converted_tx_view = inner_tx.as_advanced_builder().build();
         let tx = chain.complete_tx(converted_tx_view);

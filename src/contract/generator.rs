@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction};
-use ckb_types::core::cell::CellMeta;
+
 use ckb_types::core::{TransactionBuilder, TransactionView};
 
 // Note: Uses ckb_jsonrpc_types
@@ -79,11 +79,7 @@ impl<'a, 'b> Generator<'a, 'b> {
     }
 
     pub fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>> {
-        if let Some(query_service) = self.query_service {
-            Some(query_service.query(query))
-        } else {
-            None
-        }
+        self.query_service.map(|query_service| query_service.query(query))
     }
     pub fn generate(&self) -> TransactionView {
         self.pipe(self.tx.as_ref().unwrap().clone())

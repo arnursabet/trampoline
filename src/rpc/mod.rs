@@ -1,12 +1,11 @@
 use ckb_jsonrpc_types::{
-    BlockNumber, BlockView, CellInfo, CellWithStatus, OutPoint, Script, ScriptHashType,
-    Transaction, TransactionView, TransactionWithStatus,
+    BlockNumber, BlockView, CellWithStatus, OutPoint,
+    Transaction, TransactionWithStatus,
 };
 use ckb_types::{
-    core::cell::{CellMeta, CellStatus},
     H256,
 };
-use reqwest::{Client, Request, Result};
+
 use serde::{Deserialize, Serialize};
 use serde_json;
 use thiserror::Error;
