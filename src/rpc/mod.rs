@@ -1,10 +1,7 @@
 use ckb_jsonrpc_types::{
-    BlockNumber, BlockView, CellWithStatus, OutPoint,
-    Transaction, TransactionWithStatus,
+    BlockNumber, BlockView, CellWithStatus, OutPoint, Transaction, TransactionWithStatus,
 };
-use ckb_types::{
-    H256,
-};
+use ckb_types::H256;
 
 use serde::{Deserialize, Serialize};
 use serde_json;

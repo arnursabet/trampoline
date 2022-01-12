@@ -1,4 +1,4 @@
-use crate::contract::generator::{TransactionProvider};
+use crate::contract::generator::TransactionProvider;
 use ckb_chain_spec::consensus::{Consensus, ConsensusBuilder, TYPE_ID_CODE_HASH};
 use ckb_error::Error as CKBError;
 use ckb_jsonrpc_types::TransactionView as JsonTransaction;
@@ -9,7 +9,8 @@ use ckb_types::{
     core::{
         cell::{CellMeta, CellMetaBuilder, ResolvedTransaction},
         hardfork::HardForkSwitch,
-        Capacity, Cycle, DepType, EpochExt, EpochNumberWithFraction, HeaderView, ScriptHashType, TransactionInfo, TransactionView,
+        Capacity, Cycle, DepType, EpochExt, EpochNumberWithFraction, HeaderView, ScriptHashType,
+        TransactionInfo, TransactionView,
     },
     packed::{Byte32, CellDep, CellOutput, OutPoint, Script},
     prelude::*,
@@ -155,8 +156,12 @@ impl MockChain {
 
         let out_point = self
             .get_cell_by_data_hash(&script.code_hash())
-            .unwrap_or_else(|| panic!("Cannot find contract out point with data_hash: {}",
-                &script.code_hash()));
+            .unwrap_or_else(|| {
+                panic!(
+                    "Cannot find contract out point with data_hash: {}",
+                    &script.code_hash()
+                )
+            });
         CellDep::new_builder()
             .out_point(out_point)
             .dep_type(DepType::Code.into())

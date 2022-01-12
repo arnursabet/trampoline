@@ -1,9 +1,9 @@
 use ckb_hash::blake2b_256;
 use ckb_jsonrpc_types::{CellDep, DepType, JsonBytes, OutPoint, Script};
-use ckb_types::core::{TransactionView};
+use ckb_types::core::TransactionView;
 use ckb_types::packed::{CellOutput, CellOutputBuilder, Uint64};
 use ckb_types::{bytes::Bytes, packed, prelude::*, H256};
-use generator::{GeneratorMiddleware};
+use generator::GeneratorMiddleware;
 
 use std::fs;
 use std::path::PathBuf;
@@ -212,27 +212,22 @@ where
     fn pipe(&self, tx: TransactionView) -> TransactionView {
         type OutputWithData = (CellOutput, Bytes);
         let mut idx = 0;
-        let outputs = tx
-            .clone()
-            .outputs()
-            .into_iter()
-            .filter_map(|output| {
-                let self_script_hash: ckb_types::packed::Byte32 =
-                    self.script_hash().unwrap().into();
+        let outputs = tx.clone().outputs().into_iter().filter_map(|output| {
+            let self_script_hash: ckb_types::packed::Byte32 = self.script_hash().unwrap().into();
 
-                if let Some(type_) = output.type_().to_opt() {
-                    if type_.calc_script_hash() == self_script_hash {
-                        return tx.output_with_data(idx);
-                    }
-                }
-
-                if output.lock().calc_script_hash() == self_script_hash {
+            if let Some(type_) = output.type_().to_opt() {
+                if type_.calc_script_hash() == self_script_hash {
                     return tx.output_with_data(idx);
                 }
+            }
 
-                idx += 1;
-                None
-            });
+            if output.lock().calc_script_hash() == self_script_hash {
+                return tx.output_with_data(idx);
+            }
+
+            idx += 1;
+            None
+        });
 
         let outputs = outputs
             .into_iter()
@@ -254,10 +249,7 @@ where
                                         self.data_schema.pack(new_data.clone())
                                     );
 
-                                    (
-                                        output.0,
-                                        self.data_schema.pack(new_data).unpack(),
-                                    )
+                                    (output.0, self.data_schema.pack(new_data).unpack())
                                 } else {
                                     output
                                 }
@@ -267,10 +259,7 @@ where
                             ContractCellFieldSelector::Capacity => todo!(),
                             ContractCellFieldSelector::Args => todo!(),
                         });
-                println!(
-                    "Output bytes of processed output: {:?}",
-                    processed.1.pack()
-                );
+                println!("Output bytes of processed output: {:?}", processed.1.pack());
                 processed
             })
             .collect::<Vec<OutputWithData>>();
@@ -305,10 +294,7 @@ where
 mod tests {
     use super::sudt::*;
     use super::*;
-    use chain::{
-        MockChain,
-        MockChainTxProvider as ChainRpc,
-    };
+    use chain::{MockChain, MockChainTxProvider as ChainRpc};
     use ckb_always_success_script;
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::{
@@ -351,9 +337,7 @@ mod tests {
                 Some(JsonBytes::from_vec(bytes_buf.to_vec()))
             }
         };
-        
 
-        
         let path_to_sudt_bin = Path::new(path_to_sudt_bin).canonicalize().unwrap();
         let sudt_src = ContractSource::load_from_path(path_to_sudt_bin).unwrap();
         let arg_schema_ptr =

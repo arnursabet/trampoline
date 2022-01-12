@@ -79,7 +79,8 @@ impl<'a, 'b> Generator<'a, 'b> {
     }
 
     pub fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>> {
-        self.query_service.map(|query_service| query_service.query(query))
+        self.query_service
+            .map(|query_service| query_service.query(query))
     }
     pub fn generate(&self) -> TransactionView {
         self.pipe(self.tx.as_ref().unwrap().clone())
