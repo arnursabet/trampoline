@@ -47,7 +47,7 @@ pub struct CellQuery {
 
 
 pub trait QueryProvider {
-    fn query(&self, query: CellQuery) -> Vec<CellMeta>;
+    fn query(&self, query: CellQuery) -> Vec<OutPoint>;
 }
 
 #[derive(Default)]
@@ -83,7 +83,7 @@ impl<'a, 'b> Generator<'a, 'b> {
         self
     }
 
-    pub fn query(&self, query: CellQuery) -> Option<Vec<CellMeta>> {
+    pub fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>> {
         if let Some(query_service) = self.query_service {
             Some(query_service.query(query))
         } else {

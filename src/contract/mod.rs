@@ -9,6 +9,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use self::chain::CellOutputWithData;
+use self::generator::CellQuery;
 pub mod sudt;
 pub mod generator;
 pub mod chain;
@@ -59,7 +60,8 @@ pub struct Contract<A, D> {
     pub lock: Option<Script>,
     pub type_: Option<Script>,
     pub code: Option<JsonBytes>,
-    pub output_rules: Vec<(ContractCellFieldSelector, Box<dyn Fn(ContractCellField<A, D>) -> ContractCellField<A, D>>)>
+    pub output_rules: Vec<(ContractCellFieldSelector, Box<dyn Fn(ContractCellField<A, D>) -> ContractCellField<A, D>>)>,
+    pub input_rules: Vec<Box<dyn Fn(TransactionView) -> CellQuery>>,
 }
 
 impl<A, D> Contract<A, D>{
@@ -184,6 +186,13 @@ impl<A, D> Contract<A, D>{
         self.output_rules.push((field, Box::new(transform_func)));
     }
 
+    pub fn add_input_rule<F>(&mut self, query_func: F)
+    where
+        F: Fn(TransactionView) -> CellQuery + 'static,
+    {
+        self.input_rules.push(Box::new(query_func))
+    }
+
 }
 
 impl<A, D> GeneratorMiddleware for Contract<A, D> 
@@ -280,7 +289,7 @@ mod tests {
         } else {
             lock = Some(JsonBytes::from_bytes(Byte32::default().as_bytes()));
         }
-        println!("MINTER LOCK in gen_sudt_contract {:?}", lock.clone().unwrap().into_bytes());
+       
         if let Some(supply) = initial_supply {
             let supply = supply.to_le_bytes();
             let mut bytes_buf = [0u8; 16];
@@ -302,7 +311,8 @@ mod tests {
             lock: None,
             type_: None,
             code: Some(JsonBytes::from_bytes(sudt_src)),
-            output_rules: vec![]
+            output_rules: vec![],
+            input_rules: vec![]
         }
     }
 
