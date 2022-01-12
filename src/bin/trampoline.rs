@@ -14,10 +14,10 @@ use trampoline::docker::*;
 use trampoline::opts::{NetworkCommands, SchemaCommand, TrampolineCommand};
 use trampoline::parse_hex;
 use trampoline::project::*;
+use trampoline::rpc;
 use trampoline::schema::{Schema, SchemaInitArgs};
 use trampoline::TrampolineResource;
 use trampoline::TrampolineResourceType;
-use trampoline::rpc;
 const SECP_TYPE_HASH: H256 =
     h256!("0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8");
 fn create_block_assembler_from_pkhash(hash: &[u8]) -> BlockAssemblerConfig {
@@ -235,14 +235,16 @@ fn main() -> Result<()> {
                         "http://172.17.0.2:8114".into(),
                     ]))?;
                 }
-                NetworkCommands::Rpc {hash} => {
+                NetworkCommands::Rpc { hash } => {
                     let hash = H256::from_str(hash.as_str())?;
                     let mut rpc_client = rpc::RpcClient::new();
-                    let url = format!("{}:{}", project.config.env.as_ref().unwrap().chain.host, 
-                    project.config.env.as_ref().unwrap().chain.host_port);
+                    let url = format!(
+                        "{}:{}",
+                        project.config.env.as_ref().unwrap().chain.host,
+                        project.config.env.as_ref().unwrap().chain.host_port
+                    );
                     let result = rpc_client.get_transaction(hash, url)?;
                     println!("Transaction with status: {}", serde_json::json!(result));
-
                 }
                 _ => {
                     println!("Command not yet implemented!");

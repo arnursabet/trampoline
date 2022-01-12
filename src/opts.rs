@@ -80,9 +80,7 @@ pub enum NetworkCommands {
     )]
     Init {},
     #[structopt(name = "rpc", about = "Make Rpc calls")]
-    Rpc {
-        hash: String,
-    }
+    Rpc { hash: String },
 }
 #[derive(Debug, StructOpt)]
 pub enum SchemaCommand {

@@ -1,19 +1,18 @@
 use ckb_hash::blake2b_256;
-use ckb_jsonrpc_types::{JsonBytes, Script, CellDep, DepType, OutPoint};
-use ckb_types::core::{TransactionView, TransactionBuilder};
-use ckb_types::packed::{CellOutput, Uint64, CellOutputBuilder};
+use ckb_jsonrpc_types::{CellDep, DepType, JsonBytes, OutPoint, Script};
+use ckb_types::core::{TransactionBuilder, TransactionView};
+use ckb_types::packed::{CellOutput, CellOutputBuilder, Uint64};
 use ckb_types::{bytes::Bytes, packed, prelude::*, H256};
-use generator::{QueryProvider, TransactionProvider, GeneratorMiddleware};
+use generator::{GeneratorMiddleware, QueryProvider, TransactionProvider};
 
 use std::fs;
 use std::path::PathBuf;
 
 use self::chain::CellOutputWithData;
 use self::generator::CellQuery;
-pub mod sudt;
-pub mod generator;
 pub mod chain;
-
+pub mod generator;
+pub mod sudt;
 
 pub trait ContractSchema {
     type Output;
@@ -41,14 +40,14 @@ pub enum ContractCellFieldSelector {
     Data,
     LockScript,
     TypeScript,
-    Capacity
+    Capacity,
 }
-pub enum ContractCellField<A,D> {
+pub enum ContractCellField<A, D> {
     Args(A),
     Data(D),
     LockScript(ckb_types::packed::Script),
     TypeScript(ckb_types::packed::Script),
-    Capacity(Uint64)
+    Capacity(Uint64),
 }
 
 pub struct Contract<A, D> {
@@ -60,11 +59,14 @@ pub struct Contract<A, D> {
     pub lock: Option<Script>,
     pub type_: Option<Script>,
     pub code: Option<JsonBytes>,
-    pub output_rules: Vec<(ContractCellFieldSelector, Box<dyn Fn(ContractCellField<A, D>) -> ContractCellField<A, D>>)>,
+    pub output_rules: Vec<(
+        ContractCellFieldSelector,
+        Box<dyn Fn(ContractCellField<A, D>) -> ContractCellField<A, D>>,
+    )>,
     pub input_rules: Vec<Box<dyn Fn(TransactionView) -> CellQuery>>,
 }
 
-impl<A, D> Contract<A, D>{
+impl<A, D> Contract<A, D> {
     pub fn args_schema(mut self, schema: Box<dyn ContractSchema<Output = A>>) -> Self {
         self.args_schema = schema;
         self
@@ -104,7 +106,14 @@ impl<A, D> Contract<A, D>{
         self.data_hash().map(|data_hash| {
             Script::from(
                 packed::ScriptBuilder::default()
-                    .args(self.args.as_ref().unwrap_or(&JsonBytes::from_vec(vec![])).clone().into_bytes().pack())
+                    .args(
+                        self.args
+                            .as_ref()
+                            .unwrap_or(&JsonBytes::from_vec(vec![]))
+                            .clone()
+                            .into_bytes()
+                            .pack(),
+                    )
                     .code_hash(data_hash.pack())
                     .hash_type(ckb_types::core::ScriptHashType::Data1.into())
                     .build(),
@@ -123,7 +132,7 @@ impl<A, D> Contract<A, D>{
                 None
             }
         };
-        
+
         let cell_output = CellOutputBuilder::default()
             .capacity((data.len() as u64).pack())
             .lock(self.lock.clone().unwrap_or(Default::default()).into())
@@ -133,12 +142,15 @@ impl<A, D> Contract<A, D>{
     }
 
     pub fn script_hash(&self) -> Option<ckb_jsonrpc_types::Byte32> {
-       let script: ckb_types::packed::Script = self.as_script().unwrap().into();
-       Some(script.calc_script_hash().into())
+        let script: ckb_types::packed::Script = self.as_script().unwrap().into();
+        Some(script.calc_script_hash().into())
     }
 
     pub fn as_cell_dep(&self, out_point: OutPoint) -> CellDep {
-        CellDep { out_point, dep_type: DepType::Code }
+        CellDep {
+            out_point,
+            dep_type: DepType::Code,
+        }
     }
 
     // Set data of a cell that will *reference* (i.e., use) this contract
@@ -149,7 +161,6 @@ impl<A, D> Contract<A, D>{
     pub fn set_data(&mut self, data: D) {
         self.data = Some(self.data_schema.pack(data).into());
     }
-
 
     // Set args of a cell that will *reference* (i.e., use) this contract
     pub fn set_raw_args(&mut self, args: impl Into<JsonBytes>) {
@@ -164,7 +175,6 @@ impl<A, D> Contract<A, D>{
         self.data_schema
             .unpack(self.data.as_ref().unwrap().clone().into_bytes())
     }
-
 
     pub fn read_args(&self) -> A {
         self.args_schema
@@ -192,59 +202,78 @@ impl<A, D> Contract<A, D>{
     {
         self.input_rules.push(Box::new(query_func))
     }
-
 }
 
-impl<A, D> GeneratorMiddleware for Contract<A, D> 
+impl<A, D> GeneratorMiddleware for Contract<A, D>
 where
-    D: Clone
-
+    D: Clone,
 {
     fn pipe(&self, tx: TransactionView) -> TransactionView {
         type OutputWithData = (CellOutput, Bytes);
         let mut idx = 0;
-        let outputs = tx.clone().outputs().into_iter().filter_map(|output| {
-            let self_script_hash: ckb_types::packed::Byte32 = self.script_hash().unwrap().into();
-            
-            if let Some(type_) = output.type_().to_opt() {
-                if type_.calc_script_hash() == self_script_hash {
+        let outputs = tx
+            .clone()
+            .outputs()
+            .into_iter()
+            .filter_map(|output| {
+                let self_script_hash: ckb_types::packed::Byte32 =
+                    self.script_hash().unwrap().into();
+
+                if let Some(type_) = output.type_().to_opt() {
+                    if type_.calc_script_hash() == self_script_hash {
+                        return tx.output_with_data(idx);
+                    }
+                }
+
+                if output.lock().calc_script_hash() == self_script_hash {
                     return tx.output_with_data(idx);
                 }
-            }
-          
-            if output.lock().calc_script_hash() == self_script_hash {
-                return tx.output_with_data(idx);
-            }
-        
-            idx += 1;
-            None
-            
-        }).collect::<Vec<OutputWithData>>();
 
-        let outputs = outputs.into_iter().map(|output| {
-           let processed =  self.output_rules.iter().fold(output, |output, rule| {
-                match rule.0 {
-                    ContractCellFieldSelector::Data => {
-                        let data = self.read_raw_data(output.1.clone());
-                        println!("Data before update {:?}", self.data_schema.pack(data.clone()));
-                        let updated_field = rule.1(ContractCellField::Data(data));
-                        if let ContractCellField::Data(new_data) = updated_field {
-                            println!("Data after update {:?}", self.data_schema.pack(new_data.clone()));
+                idx += 1;
+                None
+            })
+            .collect::<Vec<OutputWithData>>();
 
-                            return (output.0.clone(), self.data_schema.pack(new_data).unpack());
-                        } else {
-                            return output;
-                        }
-                    },
-                    ContractCellFieldSelector::LockScript => todo!(),
-                    ContractCellFieldSelector::TypeScript => todo!(),
-                    ContractCellFieldSelector::Capacity => todo!(),
-                    ContractCellFieldSelector::Args => todo!(),
-                }
-            });
-            println!("Output bytes of processed output: {:?}", processed.1.clone().pack());
-            processed
-        }).collect::<Vec<OutputWithData>>();
+        let outputs = outputs
+            .into_iter()
+            .map(|output| {
+                let processed =
+                    self.output_rules
+                        .iter()
+                        .fold(output, |output, rule| match rule.0 {
+                            ContractCellFieldSelector::Data => {
+                                let data = self.read_raw_data(output.1.clone());
+                                println!(
+                                    "Data before update {:?}",
+                                    self.data_schema.pack(data.clone())
+                                );
+                                let updated_field = rule.1(ContractCellField::Data(data));
+                                if let ContractCellField::Data(new_data) = updated_field {
+                                    println!(
+                                        "Data after update {:?}",
+                                        self.data_schema.pack(new_data.clone())
+                                    );
+
+                                    return (
+                                        output.0.clone(),
+                                        self.data_schema.pack(new_data).unpack(),
+                                    );
+                                } else {
+                                    return output;
+                                }
+                            }
+                            ContractCellFieldSelector::LockScript => todo!(),
+                            ContractCellFieldSelector::TypeScript => todo!(),
+                            ContractCellFieldSelector::Capacity => todo!(),
+                            ContractCellFieldSelector::Args => todo!(),
+                        });
+                println!(
+                    "Output bytes of processed output: {:?}",
+                    processed.1.clone().pack()
+                );
+                processed
+            })
+            .collect::<Vec<OutputWithData>>();
 
         // let new_tx = TransactionBuilder::default()
         //     .outputs(outputs.iter().map(|out| out.0.clone()).collect::<Vec<CellOutput>>().pack())
@@ -257,39 +286,58 @@ where
         // new_tx
         // let mut new_tx = tx.clone();
         tx.as_advanced_builder()
-            .set_outputs(outputs.iter().map(|out| out.0.clone()).collect::<Vec<CellOutput>>())
-            .set_outputs_data(outputs.iter().map(|out| out.1.clone().pack()).collect::<Vec<ckb_types::packed::Bytes>>())
+            .set_outputs(
+                outputs
+                    .iter()
+                    .map(|out| out.0.clone())
+                    .collect::<Vec<CellOutput>>(),
+            )
+            .set_outputs_data(
+                outputs
+                    .iter()
+                    .map(|out| out.1.clone().pack())
+                    .collect::<Vec<ckb_types::packed::Bytes>>(),
+            )
             .build()
-        
     }
 }
 #[cfg(test)]
 mod tests {
     use super::sudt::*;
     use super::*;
-    use std::path::Path;
+    use chain::{
+        random_hash, random_out_point, CellOutputWithData, MockChain,
+        MockChainTxProvider as ChainRpc,
+    };
     use ckb_always_success_script;
-    use chain::{CellOutputWithData, random_hash, random_out_point, MockChain, MockChainTxProvider as ChainRpc};
-    use generator::*;
     use ckb_jsonrpc_types::JsonBytes;
-    use ckb_types::{packed::{Byte32, Uint128, CellInput, CellInputBuilder}, core::TransactionBuilder};
+    use ckb_types::{
+        core::TransactionBuilder,
+        packed::{Byte32, CellInput, CellInputBuilder, Uint128},
+    };
+    use generator::*;
+    use std::path::Path;
 
     // Generated from ckb-cli util blake2b --binary-path /path/to/builtins/bins/simple_udt
     const EXPECTED_SUDT_HASH: &str =
         "0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419";
 
-    
-    fn gen_sudt_contract(minter_lock: Option<ckb_types::packed::Script>, initial_supply: Option<u128>) -> SudtContract {
+    fn gen_sudt_contract(
+        minter_lock: Option<ckb_types::packed::Script>,
+        initial_supply: Option<u128>,
+    ) -> SudtContract {
         let path_to_sudt_bin = "builtins/bins/simple_udt";
 
         let mut lock = None;
         let mut init_supply = None;
         if let Some(lock_script) = minter_lock {
-            lock = Some(JsonBytes::from_bytes(lock_script.calc_script_hash().as_bytes()));
+            lock = Some(JsonBytes::from_bytes(
+                lock_script.calc_script_hash().as_bytes(),
+            ));
         } else {
             lock = Some(JsonBytes::from_bytes(Byte32::default().as_bytes()));
         }
-       
+
         if let Some(supply) = initial_supply {
             let supply = supply.to_le_bytes();
             let mut bytes_buf = [0u8; 16];
@@ -312,11 +360,13 @@ mod tests {
             type_: None,
             code: Some(JsonBytes::from_bytes(sudt_src)),
             output_rules: vec![],
-            input_rules: vec![]
+            input_rules: vec![],
         }
     }
 
-    fn generate_always_success_lock(args: Option<ckb_types::packed::Bytes>) -> ckb_types::packed::Script {
+    fn generate_always_success_lock(
+        args: Option<ckb_types::packed::Bytes>,
+    ) -> ckb_types::packed::Script {
         let data: Bytes = ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
         let data_hash = H256::from(blake2b_256(data.to_vec().as_slice()));
         ckb_types::packed::Script::default()
@@ -327,31 +377,42 @@ mod tests {
             .build()
     }
     fn generate_simple_udt_cell(sudt_contract: &SudtContract) -> CellOutput {
-         let lock = sudt_contract.lock.clone().unwrap_or(generate_always_success_lock(None).into());
+        let lock = sudt_contract
+            .lock
+            .clone()
+            .unwrap_or(generate_always_success_lock(None).into());
         // let mut capacity_buf = [0u8; 16];
         // capacity_buf.copy_from_slice(sudt_contract.read_data().as_slice());
         // let capacity = u128::from_le_bytes(capacity_buf);
         CellOutput::new_builder()
-        .capacity(100_u64.pack())
-        .type_(Some(ckb_types::packed::Script::from(sudt_contract.as_script().unwrap())).pack())
-        .lock(lock.into())
-        .build()
+            .capacity(100_u64.pack())
+            .type_(
+                Some(ckb_types::packed::Script::from(
+                    sudt_contract.as_script().unwrap(),
+                ))
+                .pack(),
+            )
+            .lock(lock.into())
+            .build()
     }
 
-    fn generate_mock_tx(outputs: Vec<CellOutput>, outputs_data: Vec<ckb_types::packed::Bytes>) -> TransactionView {
+    fn generate_mock_tx(
+        outputs: Vec<CellOutput>,
+        outputs_data: Vec<ckb_types::packed::Bytes>,
+    ) -> TransactionView {
         TransactionBuilder::default()
-        .outputs(outputs)
-        .outputs_data(outputs_data)
-        .build()
+            .outputs(outputs)
+            .outputs_data(outputs_data)
+            .build()
     }
 
     #[test]
     fn test_sudt_issuance_tx_with_contract_pipeline() {
         let mut chain = MockChain::default();
-       
 
         // Create always success lock cell and add to chain
-        let minter_lock_code_cell_data: Bytes = ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
+        let minter_lock_code_cell_data: Bytes =
+            ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
         let minter_lock_cell = chain.deploy_cell_with_data(minter_lock_code_cell_data);
         let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());
         let non_minter_lock = chain.build_script(&minter_lock_cell, vec![200_u8].into());
@@ -359,28 +420,24 @@ mod tests {
         // Create two cells locked with always success but w/ different script args
         let minter_owned_cell = chain.create_cell(
             CellOutput::new_builder()
-                    .capacity(2000_u64.pack())
-                    .lock(minter_lock_script.clone().unwrap())
-                    .build()
-            , 
-            Default::default()
+                .capacity(2000_u64.pack())
+                .lock(minter_lock_script.clone().unwrap())
+                .build(),
+            Default::default(),
         );
-       
+
         let non_minter_owned_cell = chain.create_cell(
             CellOutput::new_builder()
-                    .capacity(2000_u64.pack())
-                    .lock(non_minter_lock.clone().unwrap())
-                    .build()
-            , 
-            Default::default()
+                .capacity(2000_u64.pack())
+                .lock(non_minter_lock.clone().unwrap())
+                .build(),
+            Default::default(),
         );
-        
-     
+
         // Deploy SUDT to chain
-        let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));        
+        let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
         let sudt_code_cell = sudt_contract.as_code_cell();
         let sudt_code_cell_outpoint = chain.create_cell(sudt_code_cell.0, sudt_code_cell.1);
-        
 
         // Create Cell Inputs
         let minter_owned_cell_input = CellInputBuilder::default()
@@ -394,7 +451,11 @@ mod tests {
         // Create Mint SUDT transaction, using as input a cell locked with the minter's lock script
         let tx = TransactionBuilder::default()
             .input(minter_owned_cell_input)
-            .cell_dep(sudt_contract.as_cell_dep(sudt_code_cell_outpoint.clone().into()).into())
+            .cell_dep(
+                sudt_contract
+                    .as_cell_dep(sudt_code_cell_outpoint.clone().into())
+                    .into(),
+            )
             .cell_dep(chain.find_cell_dep_for_script(&minter_lock_script.clone().unwrap()))
             .output(generate_simple_udt_cell(&sudt_contract))
             .outputs_data(vec![0_u128.to_le_bytes().pack()])
@@ -404,57 +465,57 @@ mod tests {
         // Should fail because the user does not have mint permissions
         let fail_tx = TransactionBuilder::default()
             .input(non_minter_owned_cell_input)
-            .cell_dep(sudt_contract.as_cell_dep(sudt_code_cell_outpoint.into()).into())
+            .cell_dep(
+                sudt_contract
+                    .as_cell_dep(sudt_code_cell_outpoint.into())
+                    .into(),
+            )
             .cell_dep(chain.find_cell_dep_for_script(&minter_lock_script.clone().unwrap()))
             .output(generate_simple_udt_cell(&sudt_contract))
             .outputs_data(vec![0_u128.to_le_bytes().pack()])
             .build();
-           
 
-            // Add rule to sudt output generation to increase the amount field.
-            sudt_contract.add_output_rule(
-                ContractCellFieldSelector::Data, 
-        |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
-                        if let ContractCellField::Data(amount) = amount {
-                            let mut amt_bytes = [0u8; 16];
-                            amt_bytes.copy_from_slice(amount.as_slice());
-                            let amt = u128::from_le_bytes(amt_bytes) + 2000;
-                            ContractCellField::Data(amt.pack())
-                        } else {
-                            amount
-                        }
-                      }
-            );
+        // Add rule to sudt output generation to increase the amount field.
+        sudt_contract.add_output_rule(
+            ContractCellFieldSelector::Data,
+            |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                if let ContractCellField::Data(amount) = amount {
+                    let mut amt_bytes = [0u8; 16];
+                    amt_bytes.copy_from_slice(amount.as_slice());
+                    let amt = u128::from_le_bytes(amt_bytes) + 2000;
+                    ContractCellField::Data(amt.pack())
+                } else {
+                    amount
+                }
+            },
+        );
 
+        // Instantiate chain rpc and tx generator
+        let chain_rpc = ChainRpc::new(chain);
+        let mut generator = Generator::new()
+            .chain_service(&chain_rpc)
+            .pipeline(vec![&sudt_contract]);
 
-            // Instantiate chain rpc and tx generator
-            let chain_rpc = ChainRpc::new(chain);
-            let mut generator = Generator::new()
-                .chain_service(&chain_rpc)
-                .pipeline(vec![&sudt_contract]);
+        // Generate two transactions
+        let new_tx = generator.pipe(tx);
+        let new_fail_tx = generator.pipe(fail_tx);
 
-            // Generate two transactions
-            let new_tx = generator.pipe(tx);
-            let new_fail_tx = generator.pipe(fail_tx);
+        // Test that success transaction succeeded & has correct sudt amount minted
+        let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
+        let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
+        assert_eq!(new_tx_amt, 2000_u128);
 
-    
-            // Test that success transaction succeeded & has correct sudt amount minted
-            let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
-            let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
-            assert_eq!(new_tx_amt, 2000_u128);
+        let is_valid = chain_rpc.verify_tx(new_tx.into());
+        assert!(is_valid);
 
-            let is_valid = chain_rpc.verify_tx(new_tx.into());
-            assert!(is_valid);
-
-            // Test that failure transaction failed
-            let is_valid = chain_rpc.verify_tx(new_fail_tx.into());
-            assert!(!is_valid);
-
+        // Test that failure transaction failed
+        let is_valid = chain_rpc.verify_tx(new_fail_tx.into());
+        assert!(!is_valid);
     }
 
     #[test]
     fn test_update_sudt_with_rule_pipeline() {
-       // Load SUDT contract
+        // Load SUDT contract
         let mut sudt_contract = gen_sudt_contract(None, None);
         // Create SUDT Cell Output
         let sudt_cell = generate_simple_udt_cell(&sudt_contract);
@@ -462,60 +523,60 @@ mod tests {
         let transaction = generate_mock_tx(vec![sudt_cell], vec![2000_u128.to_le_bytes().pack()]);
 
         // Add output rule to sudt contract to increase balance by 17
-            sudt_contract.add_output_rule(
-                ContractCellFieldSelector::Data, 
-        |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
-                        if let ContractCellField::Data(amount) = amount {
-                            let mut amt_bytes = [0u8; 16];
-                            amt_bytes.copy_from_slice(amount.as_slice());
-                            let amt = u128::from_le_bytes(amt_bytes) + 17;
-                            ContractCellField::Data(amt.pack())
-                        } else {
-                            amount
-                        }
-                      }
-            );
+        sudt_contract.add_output_rule(
+            ContractCellFieldSelector::Data,
+            |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                if let ContractCellField::Data(amount) = amount {
+                    let mut amt_bytes = [0u8; 16];
+                    amt_bytes.copy_from_slice(amount.as_slice());
+                    let amt = u128::from_le_bytes(amt_bytes) + 17;
+                    ContractCellField::Data(amt.pack())
+                } else {
+                    amount
+                }
+            },
+        );
 
         // Add output rule to sudt contract to increase balance by 20
-            sudt_contract.add_output_rule(
-                ContractCellFieldSelector::Data, 
-        |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
-                        if let ContractCellField::Data(amount) = amount {
-                            let mut amt_bytes = [0u8; 16];
-                            amt_bytes.copy_from_slice(amount.as_slice());
-                            let amt = u128::from_le_bytes(amt_bytes) + 20;
-                            ContractCellField::Data(amt.pack())
-                        } else {
-                            amount
-                        }
-                      }
-            );
+        sudt_contract.add_output_rule(
+            ContractCellFieldSelector::Data,
+            |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                if let ContractCellField::Data(amount) = amount {
+                    let mut amt_bytes = [0u8; 16];
+                    amt_bytes.copy_from_slice(amount.as_slice());
+                    let amt = u128::from_le_bytes(amt_bytes) + 20;
+                    ContractCellField::Data(amt.pack())
+                } else {
+                    amount
+                }
+            },
+        );
 
-            // Pipe transaction into sudt contract
-            let new_tx = sudt_contract.pipe(transaction);
+        // Pipe transaction into sudt contract
+        let new_tx = sudt_contract.pipe(transaction);
 
-            // Check that sudt contract updated correctly with a total balance increase of 37 (17 + 20)
-            let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
-            println!("New tx amt as bytes: {:?}", new_tx_amt.pack());
-            let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
-            assert_eq!(new_tx_amt, 2037_u128);
+        // Check that sudt contract updated correctly with a total balance increase of 37 (17 + 20)
+        let new_tx_amt = new_tx.output_with_data(0).unwrap().1.clone();
+        println!("New tx amt as bytes: {:?}", new_tx_amt.pack());
+        let new_tx_amt: u128 = sudt_contract.read_raw_data(new_tx_amt).unpack();
+        assert_eq!(new_tx_amt, 2037_u128);
     }
     #[test]
     fn test_add_output_rule() {
         let mut sudt_contract = gen_sudt_contract(None, None);
 
         sudt_contract.add_output_rule(
-            ContractCellFieldSelector::Data, 
-    |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
-                    if let ContractCellField::Data(amount) = amount {
-                        let mut amt_bytes = [0u8; 16];
-                        amt_bytes.copy_from_slice(amount.as_slice());
-                        let amt = u128::from_le_bytes(amt_bytes) + 17;
-                        ContractCellField::Data(amt.pack())
-                    } else {
-                        amount
-                    }
-                  }
+            ContractCellFieldSelector::Data,
+            |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                if let ContractCellField::Data(amount) = amount {
+                    let mut amt_bytes = [0u8; 16];
+                    amt_bytes.copy_from_slice(amount.as_slice());
+                    let amt = u128::from_le_bytes(amt_bytes) + 17;
+                    ContractCellField::Data(amt.pack())
+                } else {
+                    amount
+                }
+            },
         );
     }
     #[test]

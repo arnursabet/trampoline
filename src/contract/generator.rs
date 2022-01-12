@@ -1,24 +1,20 @@
 use std::rc::Rc;
 
+use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction};
 use ckb_types::core::cell::CellMeta;
-use ckb_types::core::{TransactionView, TransactionBuilder};
-use ckb_jsonrpc_types::{
-    Byte32, Script, OutPoint, Capacity, TransactionView as JsonTransaction
-};
+use ckb_types::core::{TransactionBuilder, TransactionView};
 
 // Note: Uses ckb_jsonrpc_types
 pub trait TransactionProvider {
     fn send_tx(&self, tx: JsonTransaction) -> Option<Byte32>;
 
     fn verify_tx(&self, tx: JsonTransaction) -> bool;
-
 }
 
 // Note: Uses ckb_types::core::TransactionView; not ckb_jsonrpc_types::TransactionView
 pub trait GeneratorMiddleware {
     fn pipe(&self, tx: TransactionView) -> TransactionView;
 }
-
 
 // TODO: implement from for CellQueryAttribute on json_types and packed types
 #[derive(Debug, Clone)]
@@ -45,7 +41,6 @@ pub struct CellQuery {
     limit: u64,
 }
 
-
 pub trait QueryProvider {
     fn query(&self, query: CellQuery) -> Vec<OutPoint>;
 }
@@ -55,7 +50,7 @@ pub struct Generator<'a, 'b> {
     middleware: Vec<&'a dyn GeneratorMiddleware>,
     chain_service: Option<&'b dyn TransactionProvider>,
     query_service: Option<&'b dyn QueryProvider>,
-    tx: Option<TransactionView>
+    tx: Option<TransactionView>,
 }
 
 impl<'a, 'b> Generator<'a, 'b> {
@@ -64,7 +59,7 @@ impl<'a, 'b> Generator<'a, 'b> {
             middleware: vec![],
             chain_service: None,
             query_service: None,
-            tx: Some(TransactionBuilder::default().build())
+            tx: Some(TransactionBuilder::default().build()),
         }
     }
 
@@ -97,9 +92,8 @@ impl<'a, 'b> Generator<'a, 'b> {
 
 impl GeneratorMiddleware for Generator<'_, '_> {
     fn pipe(&self, tx: TransactionView) -> TransactionView {
-        self.middleware.iter().fold(tx, |tx, middleware| {
-            middleware.pipe(tx)
-        })
+        self.middleware
+            .iter()
+            .fold(tx, |tx, middleware| middleware.pipe(tx))
     }
 }
-

@@ -1,6 +1,7 @@
-use crate::contract::generator::{TransactionProvider, QueryProvider};
+use crate::contract::generator::{QueryProvider, TransactionProvider};
 use ckb_chain_spec::consensus::{Consensus, ConsensusBuilder, TYPE_ID_CODE_HASH};
 use ckb_error::Error as CKBError;
+use ckb_jsonrpc_types::TransactionView as JsonTransaction;
 use ckb_script::{TransactionScriptsVerifier, TxVerifyEnv};
 use ckb_traits::{CellDataProvider, HeaderProvider};
 use ckb_types::{
@@ -8,21 +9,20 @@ use ckb_types::{
     core::{
         cell::{CellMeta, CellMetaBuilder, ResolvedTransaction},
         hardfork::HardForkSwitch,
-        Capacity, Cycle, EpochExt, DepType, EpochNumberWithFraction, HeaderView, ScriptHashType,
-        TransactionInfo, TransactionView, TransactionBuilder,
+        Capacity, Cycle, DepType, EpochExt, EpochNumberWithFraction, HeaderView, ScriptHashType,
+        TransactionBuilder, TransactionInfo, TransactionView,
     },
     packed::{Byte32, CellDep, CellOutput, OutPoint, Script},
     prelude::*,
 };
 use ckb_util::LinkedHashSet;
-use rand::{thread_rng, Rng};
-use std::{collections::HashMap, borrow::BorrowMut, cell::RefCell};
-use std::sync::{Arc, Mutex};
 use ckb_verification::TransactionError;
-use ckb_jsonrpc_types::TransactionView as JsonTransaction;
+use rand::{thread_rng, Rng};
+use std::sync::{Arc, Mutex};
+use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap};
 pub type CellOutputWithData = (CellOutput, Bytes);
 
-// Most of this is taken from https://github.com/nervosnetwork/ckb-tool. 
+// Most of this is taken from https://github.com/nervosnetwork/ckb-tool.
 // Reimplementation here due to slight changes in the API & version conflicts
 
 const MAX_CYCLES: u64 = 500_0000;
@@ -88,7 +88,7 @@ impl MockChain {
         let cell = CellOutput::new_builder()
             .capacity(Capacity::bytes(data.len()).expect("Data Capacity").pack())
             .build();
-        
+
         self.cells.insert(out_point.clone(), (cell, data));
         self.cells_by_data_hash.insert(data_hash, out_point.clone());
         out_point
@@ -99,10 +99,7 @@ impl MockChain {
     }
 
     pub fn link_cell_with_block(&mut self, outp: OutPoint, hash: Byte32, tx_idx: usize) {
-        let header = self
-        .headers
-        .get(&hash)
-        .expect("can't find the header");
+        let header = self.headers.get(&hash).expect("can't find the header");
         self.outpoint_txs.insert(
             outp,
             TransactionInfo::new(header.number(), header.epoch(), hash, tx_idx),
@@ -123,7 +120,6 @@ impl MockChain {
         let data_hash = CellOutput::calc_data_hash(&data);
         self.cells_by_data_hash.insert(data_hash, outp.clone());
         self.cells.insert(outp, (cell, data));
-      
     }
 
     pub fn get_cell(&self, out_point: &OutPoint) -> Option<CellOutputWithData> {
@@ -134,7 +130,7 @@ impl MockChain {
         &mut self,
         outp: &OutPoint,
         typ: ScriptHashType,
-        args: Bytes
+        args: Bytes,
     ) -> Option<Script> {
         let (_, contract_data) = self.cells.get(outp)?;
         let data_hash = CellOutput::calc_data_hash(contract_data);
@@ -160,13 +156,16 @@ impl MockChain {
 
         let out_point = self
             .get_cell_by_data_hash(&script.code_hash())
-            .expect(&format!("Cannot find contract out point with data_hash: {}", &script.code_hash()));
+            .expect(&format!(
+                "Cannot find contract out point with data_hash: {}",
+                &script.code_hash()
+            ));
         CellDep::new_builder()
             .out_point(out_point)
             .dep_type(DepType::Code.into())
             .build()
     }
-    
+
     pub fn complete_tx(&mut self, tx: TransactionView) -> TransactionView {
         let mut cell_deps: LinkedHashSet<CellDep> = LinkedHashSet::new();
 
@@ -343,12 +342,11 @@ impl MockChain {
                     idx += 1;
                 });
                 Ok(tx_hash)
-            },
+            }
             Err(_) => todo!(),
         }
     }
 }
-
 
 impl CellDataProvider for MockChain {
     // load Cell Data
@@ -380,13 +378,13 @@ impl HeaderProvider for MockChain {
 }
 
 pub struct MockChainTxProvider {
-    pub chain: RefCell<MockChain>
+    pub chain: RefCell<MockChain>,
 }
 
 impl MockChainTxProvider {
     pub fn new(chain: MockChain) -> Self {
         Self {
-            chain: RefCell::new(chain)
+            chain: RefCell::new(chain),
         }
     }
 }
@@ -396,7 +394,7 @@ impl TransactionProvider for MockChainTxProvider {
         let mut chain = self.chain.borrow_mut();
         let inner_tx = tx.clone().inner;
         let inner_tx = ckb_types::packed::Transaction::from(inner_tx);
-        let converted_tx_view = inner_tx.as_advanced_builder().build(); 
+        let converted_tx_view = inner_tx.as_advanced_builder().build();
         let tx = chain.complete_tx(converted_tx_view);
         if let Some(hash) = chain.receive_tx(&tx).ok() {
             let tx_hash: ckb_jsonrpc_types::Byte32 = hash.into();
@@ -404,20 +402,17 @@ impl TransactionProvider for MockChainTxProvider {
         } else {
             None
         }
-  
     }
 
     fn verify_tx(&self, tx: JsonTransaction) -> bool {
         let mut chain = self.chain.borrow_mut();
         let inner_tx = tx.clone().inner;
         let inner_tx = ckb_types::packed::Transaction::from(inner_tx);
-        let converted_tx_view = inner_tx.as_advanced_builder().build(); 
+        let converted_tx_view = inner_tx.as_advanced_builder().build();
         let tx = chain.complete_tx(converted_tx_view);
         let result = chain.verify_tx(&tx, MAX_CYCLES);
         match result {
-            Ok(_) => {
-                true
-            }
+            Ok(_) => true,
             Err(e) => {
                 println!("Error in tx verify: {:?}", e);
                 false
