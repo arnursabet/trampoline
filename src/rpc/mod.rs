@@ -22,7 +22,7 @@ pub enum RpcError {
 
 pub type RpcResult<T> = std::result::Result<T, RpcError>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RpcClient {
     pub client: reqwest::blocking::Client,
     id: u64,

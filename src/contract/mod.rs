@@ -59,6 +59,7 @@ pub struct Contract<A, D> {
     pub lock: Option<Script>,
     pub type_: Option<Script>,
     pub code: Option<JsonBytes>,
+    #[allow(clippy::type_complexity)]
     pub output_rules: Vec<(
         ContractCellFieldSelector,
         Box<dyn Fn(ContractCellField<A, D>) -> ContractCellField<A, D>>,
@@ -231,8 +232,7 @@ where
 
                 idx += 1;
                 None
-            })
-            .collect::<Vec<OutputWithData>>();
+            });
 
         let outputs = outputs
             .into_iter()
@@ -328,22 +328,32 @@ mod tests {
     ) -> SudtContract {
         let path_to_sudt_bin = "builtins/bins/simple_udt";
 
-        let mut lock = None;
-        let mut init_supply = None;
-        if let Some(lock_script) = minter_lock {
-            lock = Some(JsonBytes::from_bytes(
-                lock_script.calc_script_hash().as_bytes(),
-            ));
-        } else {
-            lock = Some(JsonBytes::from_bytes(Byte32::default().as_bytes()));
-        }
+        let lock = {
+            if let Some(lock_script) = minter_lock {
+                Some(JsonBytes::from_bytes(
+                    lock_script.calc_script_hash().as_bytes(),
+                ))
+            } else {
+                Some(JsonBytes::from_bytes(Byte32::default().as_bytes()))
+            }
+        };
 
-        if let Some(supply) = initial_supply {
-            let supply = supply.to_le_bytes();
-            let mut bytes_buf = [0u8; 16];
-            bytes_buf.copy_from_slice(&supply);
-            init_supply = Some(JsonBytes::from_vec(bytes_buf.to_vec()));
-        }
+        let init_supply = {
+            if let Some(supply) = initial_supply {
+                let supply = supply.to_le_bytes();
+                let mut bytes_buf = [0u8; 16];
+                bytes_buf.copy_from_slice(&supply);
+                Some(JsonBytes::from_vec(bytes_buf.to_vec()))
+            } else {
+                let supply = 0_u128.to_le_bytes();
+                let mut bytes_buf = [0u8; 16];
+                bytes_buf.copy_from_slice(&supply);
+                Some(JsonBytes::from_vec(bytes_buf.to_vec()))
+            }
+        };
+        
+
+        
         let path_to_sudt_bin = Path::new(path_to_sudt_bin).canonicalize().unwrap();
         let sudt_src = ContractSource::load_from_path(path_to_sudt_bin).unwrap();
         let arg_schema_ptr =

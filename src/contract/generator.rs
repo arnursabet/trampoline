@@ -37,8 +37,8 @@ pub enum QueryStatement {
 
 #[derive(Debug, Clone)]
 pub struct CellQuery {
-    query: QueryStatement,
-    limit: u64,
+    _query: QueryStatement,
+    _limit: u64,
 }
 
 pub trait QueryProvider {

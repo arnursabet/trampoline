@@ -18,7 +18,7 @@ use ckb_util::LinkedHashSet;
 use ckb_verification::TransactionError;
 use rand::{thread_rng, Rng};
 use std::sync::{Arc, Mutex};
-use std::{borrow::BorrowMut, cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap};
 pub type CellOutputWithData = (CellOutput, Bytes);
 
 // Most of this is taken from https://github.com/nervosnetwork/ckb-tool.
