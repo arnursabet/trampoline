@@ -597,6 +597,7 @@ mod tests {
         );
     }
 
+    #[allow(dead_code)]
     fn test_container_cp_from() {
         let container = dummy_container();
         let file_path = Path::new("/var/lib/ckb/file.test");
