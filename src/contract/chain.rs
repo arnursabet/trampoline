@@ -94,7 +94,6 @@ impl MockChain {
 
         self.cells.insert(out_point.clone(), (cell, data));
         self.cells_by_data_hash.insert(data_hash, out_point.clone());
-
         out_point
     }
 

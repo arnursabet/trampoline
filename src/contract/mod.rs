@@ -415,6 +415,7 @@ mod tests {
                 .build(),
             Default::default(),
         );
+      
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
         let sudt_code_cell = sudt_contract.as_code_cell();
@@ -519,7 +520,6 @@ mod tests {
                 }
             },
         );
-
         sudt_contract.add_input_rule(move |_tx| -> CellQuery {
             CellQuery {
                 _query: QueryStatement::Single(CellQueryAttribute::LockHash(
@@ -536,7 +536,7 @@ mod tests {
             .query_service(&chain_rpc)
             .pipeline(vec![&sudt_contract]);
 
-        // Generate two transactions
+        // Generate transaction
         let new_tx = generator.pipe(tx, Arc::new(Mutex::new(vec![])));
 
         // Test that success transaction succeeded & has correct sudt amount minted
