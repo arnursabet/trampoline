@@ -408,6 +408,13 @@ mod tests {
         let non_minter_lock = chain.build_script(&minter_lock_cell, vec![200_u8].into());
         let non_minter_lock_hash = non_minter_lock.clone().unwrap().calc_script_hash();
 
+        chain.create_cell(
+            CellOutput::new_builder()
+                .capacity(2000_u64.pack())
+                .lock(non_minter_lock.unwrap())
+                .build(),
+            Default::default(),
+        );
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
         let sudt_code_cell = sudt_contract.as_code_cell();
@@ -473,7 +480,13 @@ mod tests {
         let minter_lock_cell = chain.deploy_cell_with_data(minter_lock_code_cell_data);
         let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());     
         let minter_lock_hash = minter_lock_script.clone().unwrap().calc_script_hash();
-  
+        chain.create_cell(
+            CellOutput::new_builder()
+                .capacity(2000_u64.pack())
+                .lock(minter_lock_script.clone().unwrap())
+                .build(),
+            Default::default(),
+        );
 
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
