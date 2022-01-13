@@ -31,6 +31,59 @@ Trampoline has other important goals as well, so here's a list of them:
 
 Goals 1 and 2 are achieved with Trampoline's pipeline-based approach to transaction generation. Goal 3 is also achieved by Trampoline's approach to composable transactions *as well as* Trampoline's simulation chain, which makes it possible to simulate end to end interactions over different time scales without even starting a network. Goal 4 is achieved with Trampoline's `create-react-app`-like experience to creating new dapp projects. Goal 5 is achieved by Trampoline's approach to orchestrating network services, which allows developers to spin up multiple nodes, miners, bridges to other chains, as well as layer 2 networks. This entire multi-chain, multi-layer environment can be configured by developers & launched locally in the time it takes to install Trampoline itself! Trampoline has simple defaults, but can easily scale the sophistication of the testing environment to fit the needs of the dapp developer, whether they're building a complex dapp on layer 1, a cross-chain dapp between Nervos Network and some other blockchain, or whether they're building on both layer 1 & layer 2.
 
+## Example: Smart Contract Pipelines for SUDT (ERC20-equivalent)
+Given the simultaneous importance & difficulty of composable transactions, below is an example of transaction generation with Trampoline's Generator API & Contract API. Also note that it uses the simulation chain (`MockChain`) and simulation chain rpc. The code would not be any different if used to send a tx to a local node.
+
+The below is an example of *issuing* supply for a specific token.
+
+```rust
+        // sudt_contract is a specific trampoline::contract::Contract
+        // Add an output rule, which will load in a Cell that uses the sudt contract & increases its balance by 2000
+        sudt_contract.add_output_rule(
+            ContractCellFieldSelector::Data,
+            |amount: ContractCellField<Byte32, Uint128>| -> ContractCellField<Byte32, Uint128> {
+                if let ContractCellField::Data(amount) = amount {
+                    let mut amt_bytes = [0u8; 16];
+                    amt_bytes.copy_from_slice(amount.as_slice());
+                    let amt = u128::from_le_bytes(amt_bytes) + 2000;
+                    ContractCellField::Data(amt.pack())
+                } else {
+                    amount
+                }
+            },
+        );
+
+        // Add an input rule. This will be used by the Generator to gather the correct input Cells
+        sudt_contract.add_input_rule(move |_tx| -> CellQuery {
+            CellQuery {
+                _query: QueryStatement::Single(CellQueryAttribute::LockHash(
+                    minter_lock_hash.clone().into(),
+                )),
+                _limit: 1,
+            }
+        });
+
+        // Instantiate simulation chain rpc and tx generator
+        // Add the sudt contract to the generator pipeline
+        let chain_rpc = ChainRpc::new(MockChain::default());
+        let generator = Generator::new()
+            .chain_service(&chain_rpc)
+            .query_service(&chain_rpc)
+            .pipeline(vec![&sudt_contract]);
+
+        // Generate the transaction structure
+        let tx = generator.generate();
+        // Verify the transaction (simulate it to ensure the transaction succeeds)
+        let is_valid = chain_rpc.verify_tx(&tx);
+
+        // If it is valid, send the tx (thereby persisting udpates to the simulation chain)
+        if is_valid {
+            chain_rpc.send_tx(tx);
+        }
+
+
+```
+
 # Features
 Trampoline allows you to jump straight into dapp development without worrying about pesky configuration, installing
 a bunch of different tools, etc.
