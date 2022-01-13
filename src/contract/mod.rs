@@ -265,16 +265,6 @@ where
             })
             .collect::<Vec<OutputWithData>>();
 
-        // let new_tx = TransactionBuilder::default()
-        //     .outputs(outputs.iter().map(|out| out.0.clone()).collect::<Vec<CellOutput>>().pack())
-        //     .outputs_data(outputs.iter().map(|out| out.1.clone()).collect::<Vec<Bytes>>().pack())
-        //     .cell_deps(tx.cell_deps())
-        //     .header_deps(tx.header_deps())
-        //     .inputs(tx.inputs())
-        //     .witnesses(tx.witnesses())
-        //     .build();
-        // new_tx
-        // let mut new_tx = tx.clone();
         let queries = self.input_rules.iter().map(|rule| {
             rule(tx.clone())
         });
