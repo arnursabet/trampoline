@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
-use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction};
+use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction, CellInput};
 
-use ckb_types::core::{TransactionBuilder, TransactionView};
+use ckb_types::{core::{TransactionBuilder, TransactionView}, packed::CellInputBuilder, prelude::*};
 
+use std::sync::{Arc, Mutex};
 // Note: Uses ckb_jsonrpc_types
 pub trait TransactionProvider {
     fn send_tx(&self, tx: JsonTransaction) -> Option<Byte32>;
@@ -13,7 +14,7 @@ pub trait TransactionProvider {
 
 // Note: Uses ckb_types::core::TransactionView; not ckb_jsonrpc_types::TransactionView
 pub trait GeneratorMiddleware {
-    fn pipe(&self, tx: TransactionView) -> TransactionView;
+    fn pipe(&self, tx: TransactionView, query_register: Arc<Mutex<Vec<CellQuery>>>) -> TransactionView;
 }
 
 // TODO: implement from for CellQueryAttribute on json_types and packed types
@@ -23,26 +24,28 @@ pub enum CellQueryAttribute {
     LockScript(Script),
     TypeScript(Script),
     OutPoint(OutPoint),
-    Capacity(Capacity),
+    MinCapacity(Capacity),
+    MaxCapacity(Capacity)
 }
 
 #[derive(Debug, Clone)]
 pub enum QueryStatement {
     Single(CellQueryAttribute),
-    And(Rc<QueryStatement>, Rc<QueryStatement>),
-    Or(Rc<QueryStatement>, Rc<QueryStatement>),
-    // First statement is primary query, second statements filters from query matches
-    FilterFrom(Rc<QueryStatement>, Rc<QueryStatement>),
+    FilterFrom(CellQueryAttribute, CellQueryAttribute),
+    Any(Vec<CellQueryAttribute>),
+    All(Vec<CellQueryAttribute>)
 }
 
 #[derive(Debug, Clone)]
 pub struct CellQuery {
-    _query: QueryStatement,
-    _limit: u64,
+    pub _query: QueryStatement,
+    pub _limit: u64,
 }
 
+
+
 pub trait QueryProvider {
-    fn query(&self, query: CellQuery) -> Vec<OutPoint>;
+    fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>>;
 }
 
 #[derive(Default)]
@@ -51,6 +54,7 @@ pub struct Generator<'a, 'b> {
     chain_service: Option<&'b dyn TransactionProvider>,
     query_service: Option<&'b dyn QueryProvider>,
     tx: Option<TransactionView>,
+    query_queue: Arc<Mutex<Vec<CellQuery>>>,
 }
 
 impl<'a, 'b> Generator<'a, 'b> {
@@ -60,6 +64,7 @@ impl<'a, 'b> Generator<'a, 'b> {
             chain_service: None,
             query_service: None,
             tx: Some(TransactionBuilder::default().build()),
+            query_queue: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -79,18 +84,36 @@ impl<'a, 'b> Generator<'a, 'b> {
     }
 
     pub fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>> {
-        self.query_service
-            .map(|query_service| query_service.query(query))
+       let res =  self.query_service.unwrap().query(query.clone());
+       println!("Res in generator.query for cell_query {:?} is {:?}", query, res);
+       res
+            
     }
     pub fn generate(&self) -> TransactionView {
-        self.pipe(self.tx.as_ref().unwrap().clone())
+        self.pipe(self.tx.as_ref().unwrap().clone(), self.query_queue.clone())
     }
 }
 
 impl GeneratorMiddleware for Generator<'_, '_> {
-    fn pipe(&self, tx: TransactionView) -> TransactionView {
-        self.middleware
+    fn pipe(&self, tx: TransactionView, query_register: Arc<Mutex<Vec<CellQuery>>>) -> TransactionView {
+     
+       let mut res =  self.middleware
             .iter()
-            .fold(tx, |tx, middleware| middleware.pipe(tx))
-    }
+            .fold(tx, |tx, middleware| {
+                let tx = middleware.pipe(tx, query_register.clone());
+                tx
+            });
+            let queries = query_register.clone();
+            println!("QUERIES: {:?}", queries);
+            let inputs= queries.lock().unwrap().iter().map(|query| {
+                self.query(query.to_owned()).unwrap()
+            }).flatten().map(|outp| CellInputBuilder::default().previous_output(outp.into()).build()).collect::<Vec<_>>();
+
+            println!("GENERATED INPUTS: {:?}", inputs);
+        res.as_advanced_builder()
+            .set_inputs(inputs)
+            .build()
+            
+        }
+      
 }

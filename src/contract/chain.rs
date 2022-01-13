@@ -20,6 +20,7 @@ use ckb_verification::TransactionError;
 use rand::{thread_rng, Rng};
 use std::sync::{Arc, Mutex};
 use std::{cell::RefCell, collections::HashMap};
+use super::generator::{QueryProvider, CellQuery, QueryStatement, CellQueryAttribute};
 pub type CellOutputWithData = (CellOutput, Bytes);
 
 // Most of this is taken from https://github.com/nervosnetwork/ckb-tool.
@@ -73,6 +74,7 @@ pub struct MockChain {
     pub headers: HashMap<Byte32, HeaderView>,
     pub epoches: HashMap<Byte32, EpochExt>,
     pub cells_by_data_hash: HashMap<Byte32, OutPoint>,
+    pub cells_by_lock_hash: HashMap<Byte32, Vec<OutPoint>>,
     pub debug: bool,
     messages: Arc<Mutex<Vec<Message>>>,
 }
@@ -91,6 +93,7 @@ impl MockChain {
 
         self.cells.insert(out_point.clone(), (cell, data));
         self.cells_by_data_hash.insert(data_hash, out_point.clone());
+        
         out_point
     }
 
@@ -119,7 +122,14 @@ impl MockChain {
     pub fn create_cell_with_outpoint(&mut self, outp: OutPoint, cell: CellOutput, data: Bytes) {
         let data_hash = CellOutput::calc_data_hash(&data);
         self.cells_by_data_hash.insert(data_hash, outp.clone());
-        self.cells.insert(outp, (cell, data));
+        self.cells.insert(outp.clone(), (cell.clone(), data));
+        let mut cells = self.get_cells_by_lock_hash(cell.calc_lock_hash());
+        if let Some(mut cells) = cells {
+            cells.push(outp);
+            self.cells_by_lock_hash.insert(cell.calc_lock_hash(), cells);
+        } else {
+            self.cells_by_lock_hash.insert(cell.calc_lock_hash(), vec![outp]);
+        }
     }
 
     pub fn get_cell(&self, out_point: &OutPoint) -> Option<CellOutputWithData> {
@@ -143,6 +153,17 @@ impl MockChain {
         )
     }
 
+    pub fn get_cells_by_lock_hash(&self, hash: Byte32) -> Option<Vec<OutPoint>> {
+        self.cells_by_lock_hash.get(&hash).cloned()
+    }
+
+    // pub fn get_cells_by_lock_hash_or_insert(&mut self, hash: Byte32) -> Vec<OutPoint> {
+    //     if let Some(cells) = self.get_cells_by_lock_hash(hash) {
+    //         cells
+    //     } else {
+    //         self.cells
+    //     }
+    // }
     pub fn build_script(&mut self, outp: &OutPoint, args: Bytes) -> Option<Script> {
         self.build_script_with_hash_type(outp, ScriptHashType::Data1, args)
     }
@@ -419,6 +440,34 @@ impl TransactionProvider for MockChainTxProvider {
                 println!("Error in tx verify: {:?}", e);
                 false
             }
+        }
+    }
+}
+
+impl QueryProvider for MockChainTxProvider {
+    fn query(&self, query: CellQuery) -> Option<Vec<ckb_jsonrpc_types::OutPoint>> {
+        let CellQuery {_query, _limit} = query;
+        println!("QUERY FROM QUERY PROVIDER: {:?}", _query);
+        match _query {
+            QueryStatement::Single(query_attr) => {
+                match query_attr {
+                    CellQueryAttribute::LockHash(hash) => {
+                        let cells =  self.chain.borrow().get_cells_by_lock_hash(hash.into());
+                        println!("QUERY PROVIDER QUERY HANDLING: {:?}", cells);
+                       Some(cells.unwrap().into_iter().map(|outp| {
+                            outp.into()
+                        }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
+                    },
+                    CellQueryAttribute::LockScript(script) => todo!(),
+                    CellQueryAttribute::TypeScript(script) => todo!(),
+                    CellQueryAttribute::OutPoint(outp) => todo!(),
+                    CellQueryAttribute::MinCapacity(amt) => todo!(),
+                    CellQueryAttribute::MaxCapacity(amt) => todo!(),
+                }
+            },
+            QueryStatement::FilterFrom(_, _) => todo!(),
+            QueryStatement::Any(_) => todo!(),
+            QueryStatement::All(_) => todo!(),
         }
     }
 }
