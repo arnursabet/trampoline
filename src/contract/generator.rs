@@ -1,8 +1,12 @@
-use std::rc::Rc;
+use ckb_jsonrpc_types::{
+    Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction,
+};
 
-use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction, CellInput};
-
-use ckb_types::{core::{TransactionBuilder, TransactionView}, packed::CellInputBuilder, prelude::*};
+use ckb_types::{
+    core::{TransactionBuilder, TransactionView},
+    packed::CellInputBuilder,
+    prelude::*,
+};
 
 use std::sync::{Arc, Mutex};
 // Note: Uses ckb_jsonrpc_types
@@ -14,7 +18,11 @@ pub trait TransactionProvider {
 
 // Note: Uses ckb_types::core::TransactionView; not ckb_jsonrpc_types::TransactionView
 pub trait GeneratorMiddleware {
-    fn pipe(&self, tx: TransactionView, query_register: Arc<Mutex<Vec<CellQuery>>>) -> TransactionView;
+    fn pipe(
+        &self,
+        tx: TransactionView,
+        query_register: Arc<Mutex<Vec<CellQuery>>>,
+    ) -> TransactionView;
 }
 
 // TODO: implement from for CellQueryAttribute on json_types and packed types
@@ -24,7 +32,7 @@ pub enum CellQueryAttribute {
     LockScript(Script),
     TypeScript(Script),
     MinCapacity(Capacity),
-    MaxCapacity(Capacity)
+    MaxCapacity(Capacity),
 }
 
 #[derive(Debug, Clone)]
@@ -32,7 +40,7 @@ pub enum QueryStatement {
     Single(CellQueryAttribute),
     FilterFrom(CellQueryAttribute, CellQueryAttribute),
     Any(Vec<CellQueryAttribute>),
-    All(Vec<CellQueryAttribute>)
+    All(Vec<CellQueryAttribute>),
 }
 
 #[derive(Debug, Clone)]
@@ -40,8 +48,6 @@ pub struct CellQuery {
     pub _query: QueryStatement,
     pub _limit: u64,
 }
-
-
 
 pub trait QueryProvider {
     fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>>;
@@ -83,10 +89,12 @@ impl<'a, 'b> Generator<'a, 'b> {
     }
 
     pub fn query(&self, query: CellQuery) -> Option<Vec<OutPoint>> {
-       let res =  self.query_service.unwrap().query(query.clone());
-       println!("Res in generator.query for cell_query {:?} is {:?}", query, res);
-       res
-            
+        let res = self.query_service.unwrap().query(query.clone());
+        println!(
+            "Res in generator.query for cell_query {:?} is {:?}",
+            query, res
+        );
+        res
     }
     pub fn generate(&self) -> TransactionView {
         self.pipe(self.tx.as_ref().unwrap().clone(), self.query_queue.clone())
@@ -94,25 +102,29 @@ impl<'a, 'b> Generator<'a, 'b> {
 }
 
 impl GeneratorMiddleware for Generator<'_, '_> {
-    fn pipe(&self, tx: TransactionView, query_register: Arc<Mutex<Vec<CellQuery>>>) -> TransactionView {
-     
-       let mut res =  self.middleware
+    fn pipe(
+        &self,
+        tx: TransactionView,
+        query_register: Arc<Mutex<Vec<CellQuery>>>,
+    ) -> TransactionView {
+        let res = self.middleware.iter().fold(tx, |tx, middleware| {
+            middleware.pipe(tx, query_register.clone())
+        });
+       
+        let inputs = query_register
+            .lock()
+            .unwrap()
             .iter()
-            .fold(tx, |tx, middleware| {
-                let tx = middleware.pipe(tx, query_register.clone());
-                tx
-            });
-            let queries = query_register.clone();
-            println!("QUERIES: {:?}", queries);
-            let inputs= queries.lock().unwrap().iter().map(|query| {
-                self.query(query.to_owned()).unwrap()
-            }).flatten().map(|outp| CellInputBuilder::default().previous_output(outp.into()).build()).collect::<Vec<_>>();
+            .map(|query| self.query(query.to_owned()).unwrap())
+            .flatten()
+            .map(|outp| {
+                CellInputBuilder::default()
+                    .previous_output(outp.into())
+                    .build()
+            })
+            .collect::<Vec<_>>();
 
-            println!("GENERATED INPUTS: {:?}", inputs);
-        res.as_advanced_builder()
-            .set_inputs(inputs)
-            .build()
-            
-        }
-      
+        println!("GENERATED INPUTS: {:?}", inputs);
+        res.as_advanced_builder().set_inputs(inputs).build()
+    }
 }

@@ -1,3 +1,4 @@
+use super::generator::{CellQuery, CellQueryAttribute, QueryProvider, QueryStatement};
 use crate::contract::generator::TransactionProvider;
 use ckb_chain_spec::consensus::{Consensus, ConsensusBuilder, TYPE_ID_CODE_HASH};
 use ckb_error::Error as CKBError;
@@ -20,7 +21,6 @@ use ckb_verification::TransactionError;
 use rand::{thread_rng, Rng};
 use std::sync::{Arc, Mutex};
 use std::{cell::RefCell, collections::HashMap};
-use super::generator::{QueryProvider, CellQuery, QueryStatement, CellQueryAttribute};
 pub type CellOutputWithData = (CellOutput, Bytes);
 
 // Most of this is taken from https://github.com/nervosnetwork/ckb-tool.
@@ -94,7 +94,7 @@ impl MockChain {
 
         self.cells.insert(out_point.clone(), (cell, data));
         self.cells_by_data_hash.insert(data_hash, out_point.clone());
-        
+
         out_point
     }
 
@@ -129,7 +129,8 @@ impl MockChain {
             cells.push(outp.clone());
             self.cells_by_lock_hash.insert(cell.calc_lock_hash(), cells);
         } else {
-            self.cells_by_lock_hash.insert(cell.calc_lock_hash(), vec![outp.clone()]);
+            self.cells_by_lock_hash
+                .insert(cell.calc_lock_hash(), vec![outp.clone()]);
         }
 
         if let Some(script) = cell.type_().to_opt() {
@@ -139,11 +140,9 @@ impl MockChain {
                 cells.push(outp);
                 self.cells_by_type_hash.insert(hash, cells);
             } else {
-                self.cells_by_type_hash.insert(hash, vec![outp.clone()]);
+                self.cells_by_type_hash.insert(hash, vec![outp]);
             }
         }
-        
-
     }
 
     pub fn get_cell(&self, out_point: &OutPoint) -> Option<CellOutputWithData> {
@@ -457,35 +456,51 @@ impl TransactionProvider for MockChainTxProvider {
 
 impl QueryProvider for MockChainTxProvider {
     fn query(&self, query: CellQuery) -> Option<Vec<ckb_jsonrpc_types::OutPoint>> {
-        let CellQuery {_query, _limit} = query;
+        let CellQuery { _query, _limit } = query;
         println!("QUERY FROM QUERY PROVIDER: {:?}", _query);
         match _query {
-            QueryStatement::Single(query_attr) => {
-                match query_attr {
-                    CellQueryAttribute::LockHash(hash) => {
-                        let cells =  self.chain.borrow().get_cells_by_lock_hash(hash.into());
-                       Some(cells.unwrap().into_iter().map(|outp| {
-                            outp.into()
-                        }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
-                    },
-                    CellQueryAttribute::LockScript(script) => {
-                        let script = ckb_types::packed::Script::from(script);
-                        let cells =  self.chain.borrow().get_cells_by_lock_hash(script.calc_script_hash());
-                        Some(cells.unwrap().into_iter().map(|outp| {
-                             outp.into()
-                         }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
-                    },
-                    CellQueryAttribute::TypeScript(script) => {
-                        let script = ckb_types::packed::Script::from(script);
-                        let cells =  self.chain.borrow().get_cells_by_type_hash(script.calc_script_hash());
-                        Some(cells.unwrap().into_iter().map(|outp| {
-                             outp.into()
-                         }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
-                    },
-                   _ => panic!("Capacity based queries currently unsupported!")
+            QueryStatement::Single(query_attr) => match query_attr {
+                CellQueryAttribute::LockHash(hash) => {
+                    let cells = self.chain.borrow().get_cells_by_lock_hash(hash.into());
+                    Some(
+                        cells
+                            .unwrap()
+                            .into_iter()
+                            .map(|outp| outp.into())
+                            .collect::<Vec<ckb_jsonrpc_types::OutPoint>>(),
+                    )
                 }
+                CellQueryAttribute::LockScript(script) => {
+                    let script = ckb_types::packed::Script::from(script);
+                    let cells = self
+                        .chain
+                        .borrow()
+                        .get_cells_by_lock_hash(script.calc_script_hash());
+                    Some(
+                        cells
+                            .unwrap()
+                            .into_iter()
+                            .map(|outp| outp.into())
+                            .collect::<Vec<ckb_jsonrpc_types::OutPoint>>(),
+                    )
+                }
+                CellQueryAttribute::TypeScript(script) => {
+                    let script = ckb_types::packed::Script::from(script);
+                    let cells = self
+                        .chain
+                        .borrow()
+                        .get_cells_by_type_hash(script.calc_script_hash());
+                    Some(
+                        cells
+                            .unwrap()
+                            .into_iter()
+                            .map(|outp| outp.into())
+                            .collect::<Vec<ckb_jsonrpc_types::OutPoint>>(),
+                    )
+                }
+                _ => panic!("Capacity based queries currently unsupported!"),
             },
-           _ => panic!("Compund queries currently unsupported!")
+            _ => panic!("Compund queries currently unsupported!"),
         }
     }
 }
