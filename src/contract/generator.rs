@@ -1,7 +1,4 @@
-
-use ckb_jsonrpc_types::{
-    Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction,
-};
+use ckb_jsonrpc_types::{Byte32, Capacity, OutPoint, Script, TransactionView as JsonTransaction};
 
 use ckb_types::{
     core::{TransactionBuilder, TransactionView},
@@ -25,7 +22,6 @@ pub trait GeneratorMiddleware {
         tx: TransactionView,
         query_register: Arc<Mutex<Vec<CellQuery>>>,
     ) -> TransactionView;
-
 }
 
 // TODO: implement from for CellQueryAttribute on json_types and packed types
@@ -99,7 +95,7 @@ impl<'a, 'b> Generator<'a, 'b> {
         );
         res
     }
-  
+
     pub fn generate(&self) -> TransactionView {
         self.pipe(self.tx.as_ref().unwrap().clone(), self.query_queue.clone())
     }
@@ -114,7 +110,7 @@ impl GeneratorMiddleware for Generator<'_, '_> {
         let res = self.middleware.iter().fold(tx, |tx, middleware| {
             middleware.pipe(tx, query_register.clone())
         });
-       
+
         let inputs = query_register
             .lock()
             .unwrap()

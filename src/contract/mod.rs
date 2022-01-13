@@ -415,7 +415,7 @@ mod tests {
                 .build(),
             Default::default(),
         );
-      
+
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
         let sudt_code_cell = sudt_contract.as_code_cell();
@@ -479,7 +479,7 @@ mod tests {
         let minter_lock_code_cell_data: Bytes =
             ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
         let minter_lock_cell = chain.deploy_cell_with_data(minter_lock_code_cell_data);
-        let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());     
+        let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());
         let minter_lock_hash = minter_lock_script.clone().unwrap().calc_script_hash();
         chain.create_cell(
             CellOutput::new_builder()
