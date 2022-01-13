@@ -298,7 +298,7 @@ mod tests {
     use ckb_jsonrpc_types::JsonBytes;
     use ckb_types::{
         core::TransactionBuilder,
-        packed::{Byte32, CellInputBuilder, Uint128},
+        packed::{Byte32, Uint128},
     };
     use generator::*;
     use std::path::Path;
@@ -408,14 +408,6 @@ mod tests {
         let non_minter_lock = chain.build_script(&minter_lock_cell, vec![200_u8].into());
         let non_minter_lock_hash = non_minter_lock.clone().unwrap().calc_script_hash();
 
-        let non_minter_owned_cell = chain.create_cell(
-            CellOutput::new_builder()
-                .capacity(2000_u64.pack())
-                .lock(non_minter_lock.unwrap())
-                .build(),
-            Default::default(),
-        );
-
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
         let sudt_code_cell = sudt_contract.as_code_cell();
@@ -449,7 +441,7 @@ mod tests {
             },
         );
 
-        sudt_contract.add_input_rule(move |tx| -> CellQuery {
+        sudt_contract.add_input_rule(move |_tx| -> CellQuery {
             CellQuery {
                 _query: QueryStatement::Single(CellQueryAttribute::LockHash(
                     non_minter_lock_hash.clone().into(),
@@ -479,17 +471,9 @@ mod tests {
         let minter_lock_code_cell_data: Bytes =
             ckb_always_success_script::ALWAYS_SUCCESS.to_vec().into();
         let minter_lock_cell = chain.deploy_cell_with_data(minter_lock_code_cell_data);
-        let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());
-        let non_minter_lock = chain.build_script(&minter_lock_cell, vec![200_u8].into());
+        let minter_lock_script = chain.build_script(&minter_lock_cell, vec![1_u8].into());     
         let minter_lock_hash = minter_lock_script.clone().unwrap().calc_script_hash();
-        // Create two cells locked with always success but w/ different script args
-        let minter_owned_cell = chain.create_cell(
-            CellOutput::new_builder()
-                .capacity(2000_u64.pack())
-                .lock(minter_lock_script.clone().unwrap())
-                .build(),
-            Default::default(),
-        );
+  
 
         // Deploy SUDT to chain
         let mut sudt_contract = gen_sudt_contract(minter_lock_script.clone(), Some(1500));
@@ -523,7 +507,7 @@ mod tests {
             },
         );
 
-        sudt_contract.add_input_rule(move |tx| -> CellQuery {
+        sudt_contract.add_input_rule(move |_tx| -> CellQuery {
             CellQuery {
                 _query: QueryStatement::Single(CellQueryAttribute::LockHash(
                     minter_lock_hash.clone().into(),
