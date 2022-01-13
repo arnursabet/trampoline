@@ -75,6 +75,7 @@ pub struct MockChain {
     pub epoches: HashMap<Byte32, EpochExt>,
     pub cells_by_data_hash: HashMap<Byte32, OutPoint>,
     pub cells_by_lock_hash: HashMap<Byte32, Vec<OutPoint>>,
+    pub cells_by_type_hash: HashMap<Byte32, Vec<OutPoint>>,
     pub debug: bool,
     messages: Arc<Mutex<Vec<Message>>>,
 }
@@ -123,13 +124,26 @@ impl MockChain {
         let data_hash = CellOutput::calc_data_hash(&data);
         self.cells_by_data_hash.insert(data_hash, outp.clone());
         self.cells.insert(outp.clone(), (cell.clone(), data));
-        let mut cells = self.get_cells_by_lock_hash(cell.calc_lock_hash());
+        let cells = self.get_cells_by_lock_hash(cell.calc_lock_hash());
         if let Some(mut cells) = cells {
-            cells.push(outp);
+            cells.push(outp.clone());
             self.cells_by_lock_hash.insert(cell.calc_lock_hash(), cells);
         } else {
-            self.cells_by_lock_hash.insert(cell.calc_lock_hash(), vec![outp]);
+            self.cells_by_lock_hash.insert(cell.calc_lock_hash(), vec![outp.clone()]);
         }
+
+        if let Some(script) = cell.type_().to_opt() {
+            let hash = script.calc_script_hash();
+            let cells = self.get_cells_by_type_hash(hash.clone());
+            if let Some(mut cells) = cells {
+                cells.push(outp);
+                self.cells_by_type_hash.insert(hash, cells);
+            } else {
+                self.cells_by_type_hash.insert(hash, vec![outp.clone()]);
+            }
+        }
+        
+
     }
 
     pub fn get_cell(&self, out_point: &OutPoint) -> Option<CellOutputWithData> {
@@ -157,13 +171,10 @@ impl MockChain {
         self.cells_by_lock_hash.get(&hash).cloned()
     }
 
-    // pub fn get_cells_by_lock_hash_or_insert(&mut self, hash: Byte32) -> Vec<OutPoint> {
-    //     if let Some(cells) = self.get_cells_by_lock_hash(hash) {
-    //         cells
-    //     } else {
-    //         self.cells
-    //     }
-    // }
+    pub fn get_cells_by_type_hash(&self, hash: Byte32) -> Option<Vec<OutPoint>> {
+        self.cells_by_type_hash.get(&hash).cloned()
+    }
+
     pub fn build_script(&mut self, outp: &OutPoint, args: Bytes) -> Option<Script> {
         self.build_script_with_hash_type(outp, ScriptHashType::Data1, args)
     }
@@ -453,21 +464,28 @@ impl QueryProvider for MockChainTxProvider {
                 match query_attr {
                     CellQueryAttribute::LockHash(hash) => {
                         let cells =  self.chain.borrow().get_cells_by_lock_hash(hash.into());
-                        println!("QUERY PROVIDER QUERY HANDLING: {:?}", cells);
                        Some(cells.unwrap().into_iter().map(|outp| {
                             outp.into()
                         }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
                     },
-                    CellQueryAttribute::LockScript(script) => todo!(),
-                    CellQueryAttribute::TypeScript(script) => todo!(),
-                    CellQueryAttribute::OutPoint(outp) => todo!(),
-                    CellQueryAttribute::MinCapacity(amt) => todo!(),
-                    CellQueryAttribute::MaxCapacity(amt) => todo!(),
+                    CellQueryAttribute::LockScript(script) => {
+                        let script = ckb_types::packed::Script::from(script);
+                        let cells =  self.chain.borrow().get_cells_by_lock_hash(script.calc_script_hash());
+                        Some(cells.unwrap().into_iter().map(|outp| {
+                             outp.into()
+                         }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
+                    },
+                    CellQueryAttribute::TypeScript(script) => {
+                        let script = ckb_types::packed::Script::from(script);
+                        let cells =  self.chain.borrow().get_cells_by_type_hash(script.calc_script_hash());
+                        Some(cells.unwrap().into_iter().map(|outp| {
+                             outp.into()
+                         }).collect::<Vec<ckb_jsonrpc_types::OutPoint>>())
+                    },
+                   _ => panic!("Capacity based queries currently unsupported!")
                 }
             },
-            QueryStatement::FilterFrom(_, _) => todo!(),
-            QueryStatement::Any(_) => todo!(),
-            QueryStatement::All(_) => todo!(),
+           _ => panic!("Compund queries currently unsupported!")
         }
     }
 }

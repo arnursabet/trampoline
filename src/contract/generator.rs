@@ -23,7 +23,6 @@ pub enum CellQueryAttribute {
     LockHash(Byte32),
     LockScript(Script),
     TypeScript(Script),
-    OutPoint(OutPoint),
     MinCapacity(Capacity),
     MaxCapacity(Capacity)
 }
